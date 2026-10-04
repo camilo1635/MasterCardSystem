@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
 import { Product, Purchase, Supplier } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS, today } from '../core/shared';
@@ -8,6 +8,7 @@ interface Line { productId: number | null; quantity: number; unitCost: number; }
 @Component({
   selector: 'app-purchases',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: SHARED_IMPORTS,
   template: `
     <h1>Compras y proveedores</h1>

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
 import { Account, Expense, IncomeStatement, JournalEntry, TrialBalanceRow } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS, monthStart, today } from '../core/shared';
@@ -6,6 +6,7 @@ import { MatSnackBar, SHARED_IMPORTS, monthStart, today } from '../core/shared';
 @Component({
   selector: 'app-accounting',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: SHARED_IMPORTS,
   template: `
     <h1>Contabilidad</h1>

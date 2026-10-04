@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, finalize, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
@@ -10,6 +10,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
 @Component({
   selector: 'app-invoicing',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: SHARED_IMPORTS,
   template: `
     <h1>Facturación</h1>

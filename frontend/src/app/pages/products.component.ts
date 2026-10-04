@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
@@ -10,6 +10,7 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, co
 @Component({
   selector: 'app-products',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: SHARED_IMPORTS,
   template: `
     <h1>Productos</h1>

@@ -132,7 +132,10 @@ public class InvoiceService {
             throw new BusinessException("La factura ya está anulada");
         }
         inv.setStatus("ANULADA");
-        for (InvoiceItem it : inv.getItems()) {
+        // Bloqueo en orden ascendente de producto (evita deadlocks con ventas/compras concurrentes).
+        List<InvoiceItem> byProduct = new ArrayList<>(inv.getItems());
+        byProduct.sort(Comparator.comparing(InvoiceItem::getProductId));
+        for (InvoiceItem it : byProduct) {
             inventory.move(it.getProductId(), Type.ENTRADA, it.getQuantity(), it.getUnitCost(),
                     "ANUL-FAC-" + inv.getNumber(), "Anulación de factura");
         }
@@ -140,7 +143,7 @@ public class InvoiceService {
             credit.reverseCharge(inv.getCustomerId(), inv.getTotal(), inv.getId(), "Anulación factura " + inv.getNumber());
         }
         accounting.reverse("FACTURA", inv.getId(), "ANULACION", "Anulación factura " + inv.getNumber());
-        return invoices.save(inv);
+        return inv; // entidad gestionada: el commit persiste el estado
     }
 
     @Transactional(readOnly = true)

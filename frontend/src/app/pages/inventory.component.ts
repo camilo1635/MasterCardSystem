@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
 import { InventoryMovement, Product } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
@@ -6,6 +6,7 @@ import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
 @Component({
   selector: 'app-inventory',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: SHARED_IMPORTS,
   template: `
     <h1>Inventario</h1>
@@ -32,7 +33,7 @@ import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
         </mat-select></mat-form-field>
       <table mat-table [dataSource]="movements()">
         <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let m">{{ m.createdAt | date:'dd/MM/yy HH:mm' }}</td></ng-container>
-        <ng-container matColumnDef="product"><th mat-header-cell *matHeaderCellDef>Producto</th><td mat-cell *matCellDef="let m">{{ name(m.productId) }}</td></ng-container>
+        <ng-container matColumnDef="product"><th mat-header-cell *matHeaderCellDef>Producto</th><td mat-cell *matCellDef="let m">{{ productNames().get(m.productId) ?? m.productId }}</td></ng-container>
         <ng-container matColumnDef="type"><th mat-header-cell *matHeaderCellDef>Tipo</th><td mat-cell *matCellDef="let m">{{ m.type }}</td></ng-container>
         <ng-container matColumnDef="qty"><th mat-header-cell *matHeaderCellDef class="num">Cantidad</th>
           <td mat-cell *matCellDef="let m" class="num" [class.danger]="m.quantity < 0" [class.ok]="m.quantity > 0">{{ m.quantity > 0 ? '+' : '' }}{{ m.quantity }}</td></ng-container>
@@ -50,6 +51,7 @@ export class InventoryComponent implements OnInit {
 
   products = signal<Product[]>([]);
   movements = signal<InventoryMovement[]>([]);
+  productNames = computed(() => new Map(this.products().map(p => [p.id!, p.name])));
   productId: number | null = null;
   filterId: number | null = null;
   qty = 0;
@@ -60,7 +62,7 @@ export class InventoryComponent implements OnInit {
 
   loadProducts() { this.api.products().subscribe(p => this.products.set(p)); }
   loadMovements() { this.api.movements(this.filterId ?? undefined).subscribe(m => this.movements.set(m)); }
-  name(id: number) { return this.products().find(p => p.id === id)?.name ?? id; }
+
 
   adjust() {
     this.api.adjust(this.productId!, this.qty, this.note).subscribe(() => {

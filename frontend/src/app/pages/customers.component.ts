@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
 import { CreditTransaction, Customer, CustomerCredit, Receivable } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
@@ -8,6 +8,7 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
 @Component({
   selector: 'app-customers',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: SHARED_IMPORTS,
   template: `
     <h1>Clientes y crédito</h1>

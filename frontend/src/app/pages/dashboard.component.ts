@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../core/api.service';
 import { DashboardSummary } from '../core/models';
@@ -7,6 +7,7 @@ import { SHARED_IMPORTS } from '../core/shared';
 @Component({
   selector: 'app-dashboard',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [...SHARED_IMPORTS, RouterLink],
   template: `
     <h1>Resumen</h1>
