@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: mastercard-system
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/mastercard}
+    username: ${DB_USER:mastercard}
+    password: ${DB_PASSWORD:mastercard}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+  compression:
+    enabled: true
+    mime-types: application/json
+
+app:
+  cors-origins: http://localhost:4200

@@ -1,0 +1,155 @@
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ApiService } from '../core/api.service';
+import { Customer, Invoice, Product } from '../core/models';
+import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
+
+interface CartLine { product: Product; quantity: number; unitPrice: number; }
+
+@Component({
+  selector: 'app-invoicing',
+  standalone: true,
+  imports: SHARED_IMPORTS,
+  template: `
+    <h1>Facturación</h1>
+    <mat-tab-group>
+      <mat-tab label="Nueva factura">
+        <div class="row" style="margin-top:16px; align-items: flex-start">
+          <div class="card" style="flex: 3 1 420px">
+            <mat-form-field style="width:100%"><mat-label>Buscar producto (nombre, SKU, marca)</mat-label>
+              <input matInput [ngModel]="q" (ngModelChange)="q = $event; search()"></mat-form-field>
+            <table mat-table [dataSource]="results()">
+              <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Producto</th><td mat-cell *matCellDef="let p">{{ p.name }} <span class="muted">{{ p.sku }}</span></td></ng-container>
+              <ng-container matColumnDef="price"><th mat-header-cell *matHeaderCellDef class="num">Precio</th><td mat-cell *matCellDef="let p" class="num">{{ p.price | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
+              <ng-container matColumnDef="stock"><th mat-header-cell *matHeaderCellDef class="num">Stock</th><td mat-cell *matCellDef="let p" class="num" [class.danger]="p.stock === 0">{{ p.stock }}</td></ng-container>
+              <ng-container matColumnDef="add"><th mat-header-cell *matHeaderCellDef></th>
+                <td mat-cell *matCellDef="let p"><button mat-icon-button [disabled]="p.stock === 0" (click)="add(p)"><mat-icon>add_shopping_cart</mat-icon></button></td></ng-container>
+              <tr mat-header-row *matHeaderRowDef="searchCols"></tr>
+              <tr mat-row *matRowDef="let r; columns: searchCols"></tr>
+            </table>
+          </div>
+
+          <div class="card" style="flex: 2 1 380px">
+            <h3>Factura</h3>
+            <mat-form-field style="width:100%"><mat-label>Cliente</mat-label>
+              <mat-select [(ngModel)]="customerId">
+                <mat-option [value]="null">Consumidor final</mat-option>
+                @for (c of customers(); track c.id) { <mat-option [value]="c.id">{{ c.name }} ({{ c.document }})</mat-option> }
+              </mat-select></mat-form-field>
+            <mat-form-field style="width:100%"><mat-label>Forma de pago</mat-label>
+              <mat-select [(ngModel)]="paymentType">
+                <mat-option value="CONTADO">Contado</mat-option>
+                <mat-option value="CREDITO" [disabled]="!customerId">Crédito (fiado)</mat-option>
+              </mat-select></mat-form-field>
+            @for (l of cart(); track l.product.id) {
+              <div class="row" style="margin-bottom:4px">
+                <span style="flex: 1 1 140px">{{ l.product.name }}</span>
+                <input type="number" min="1" [max]="l.product.stock" style="width:56px" [(ngModel)]="l.quantity" (ngModelChange)="touch()">
+                <span class="num" style="width:90px">{{ l.quantity * l.unitPrice | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+                <button mat-icon-button (click)="remove(l)"><mat-icon>close</mat-icon></button>
+              </div>
+            }
+            @if (!cart().length) { <p class="muted">Agregue productos desde la lista.</p> }
+            <hr>
+            <div class="row"><span style="flex:1">Subtotal</span><span>{{ totals().subtotal | currency:'COP':'symbol-narrow':'1.0-0' }}</span></div>
+            <div class="row"><span style="flex:1">IVA</span><span>{{ totals().iva | currency:'COP':'symbol-narrow':'1.0-0' }}</span></div>
+            <div class="row"><strong style="flex:1">Total</strong><strong>{{ totals().total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+            <br>
+            <button mat-flat-button color="primary" style="width:100%" [disabled]="!cart().length" (click)="submit()">Emitir factura</button>
+          </div>
+        </div>
+      </mat-tab>
+
+      <mat-tab label="Historial">
+        <div class="card" style="margin-top:16px">
+          <div class="row">
+            <mat-form-field><mat-label>Desde</mat-label><input matInput type="date" [(ngModel)]="from" (ngModelChange)="loadInvoices()"></mat-form-field>
+            <mat-form-field><mat-label>Hasta</mat-label><input matInput type="date" [(ngModel)]="to" (ngModelChange)="loadInvoices()"></mat-form-field>
+          </div>
+          <table mat-table [dataSource]="invoices()">
+            <ng-container matColumnDef="number"><th mat-header-cell *matHeaderCellDef>No.</th><td mat-cell *matCellDef="let i">{{ i.number }}</td></ng-container>
+            <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let i">{{ i.date | date:'dd/MM/yy HH:mm' }}</td></ng-container>
+            <ng-container matColumnDef="customer"><th mat-header-cell *matHeaderCellDef>Cliente</th><td mat-cell *matCellDef="let i">{{ customerName(i.customerId) }}</td></ng-container>
+            <ng-container matColumnDef="pay"><th mat-header-cell *matHeaderCellDef>Pago</th><td mat-cell *matCellDef="let i">{{ i.paymentType }}</td></ng-container>
+            <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>Estado</th><td mat-cell *matCellDef="let i" [class.danger]="i.status === 'ANULADA'">{{ i.status }}</td></ng-container>
+            <ng-container matColumnDef="total"><th mat-header-cell *matHeaderCellDef class="num">Total</th><td mat-cell *matCellDef="let i" class="num">{{ i.total | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
+            <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let i">
+                <a mat-icon-button [href]="pdfUrl(i.id)" target="_blank" title="PDF"><mat-icon>picture_as_pdf</mat-icon></a>
+                @if (i.status === 'EMITIDA') { <button mat-icon-button title="Anular" (click)="cancel(i)"><mat-icon>block</mat-icon></button> }
+              </td></ng-container>
+            <tr mat-header-row *matHeaderRowDef="cols"></tr>
+            <tr mat-row *matRowDef="let r; columns: cols"></tr>
+          </table>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  `,
+})
+export class InvoicingComponent implements OnInit {
+  private api = inject(ApiService);
+  private snack = inject(MatSnackBar);
+
+  results = signal<Product[]>([]);
+  customers = signal<Customer[]>([]);
+  invoices = signal<Invoice[]>([]);
+  cart = signal<CartLine[]>([]);
+  customerId: number | null = null;
+  paymentType = 'CONTADO';
+  q = '';
+  from = new Date(Date.now() - 30 * 864e5).toLocaleDateString('sv-SE');
+  to = new Date().toLocaleDateString('sv-SE');
+  searchCols = ['name', 'price', 'stock', 'add'];
+  cols = ['number', 'date', 'customer', 'pay', 'status', 'total', 'actions'];
+
+  totals = computed(() => {
+    let subtotal = 0, iva = 0;
+    for (const l of this.cart()) {
+      const line = Math.round(l.quantity * l.unitPrice * 100) / 100;
+      subtotal += line;
+      iva += Math.round(line * l.product.ivaRate) / 100;
+    }
+    return { subtotal, iva, total: subtotal + iva };
+  });
+
+  ngOnInit() {
+    this.search();
+    this.api.customers().subscribe(c => this.customers.set(c));
+    this.loadInvoices();
+  }
+
+  search() { this.api.products(this.q).subscribe(p => this.results.set(p.filter(x => x.active))); }
+  loadInvoices() { this.api.invoices(this.from, this.to).subscribe(i => this.invoices.set(i)); }
+  customerName(id?: number) { return id ? this.customers().find(c => c.id === id)?.name ?? id : 'Consumidor final'; }
+  pdfUrl(id: number) { return this.api.invoicePdfUrl(id); }
+
+  add(p: Product) {
+    const existing = this.cart().find(l => l.product.id === p.id);
+    if (existing) existing.quantity++;
+    else this.cart.update(c => [...c, { product: p, quantity: 1, unitPrice: p.price }]);
+    this.cart.set([...this.cart()]);
+  }
+
+  touch() { this.cart.set([...this.cart()]); }
+
+  remove(l: CartLine) { this.cart.update(c => c.filter(x => x !== l)); }
+
+  submit() {
+    this.api.createInvoice({
+      customerId: this.customerId,
+      paymentType: this.paymentType,
+      items: this.cart().map(l => ({ productId: l.product.id!, quantity: l.quantity, unitPrice: l.unitPrice })),
+    }).subscribe(inv => {
+      this.snack.open(`Factura ${inv.number} emitida`, 'Ver PDF', { duration: 8000 }).onAction()
+        .subscribe(() => window.open(this.pdfUrl(inv.id), '_blank'));
+      this.cart.set([]);
+      this.paymentType = 'CONTADO';
+      this.search();
+      this.loadInvoices();
+    });
+  }
+
+  cancel(i: Invoice) {
+    if (!confirm(`¿Anular la factura ${i.number}? Se devolverá el stock y se revertirá el crédito.`)) return;
+    this.api.cancelInvoice(i.id).subscribe(() => { this.snack.open('Factura anulada', undefined, { duration: 2500 }); this.loadInvoices(); this.search(); });
+  }
+}

@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: mastercard-db
+    environment:
+      POSTGRES_DB: mastercard
+      POSTGRES_USER: mastercard
+      POSTGRES_PASSWORD: mastercard
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

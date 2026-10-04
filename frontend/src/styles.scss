@@ -1,0 +1,49 @@
+@use '@angular/material' as mat;
+
+html {
+  @include mat.core();
+  color-scheme: light;
+  --app-bg: #fafafa;
+  --app-card: #ffffff;
+  --app-text: rgba(0, 0, 0, 0.87);
+  --app-muted: #666666;
+  --app-danger: #c62828;
+  --app-ok: #2e7d32;
+  --app-active: rgba(63, 81, 181, 0.12);
+  --app-shadow: rgba(0, 0, 0, 0.2);
+  @include mat.all-component-themes(mat.define-theme((
+    color: (theme-type: light, primary: mat.$azure-palette, tertiary: mat.$blue-palette),
+    typography: (brand-family: 'Roboto', plain-family: 'Roboto'),
+  )));
+}
+
+html.dark-theme {
+  color-scheme: dark;
+  --app-bg: #121212;
+  --app-card: #1e1e1e;
+  --app-text: rgba(255, 255, 255, 0.87);
+  --app-muted: #a0a0a0;
+  --app-danger: #ef9a9a;
+  --app-ok: #81c784;
+  --app-active: rgba(144, 164, 255, 0.18);
+  --app-shadow: rgba(0, 0, 0, 0.6);
+  @include mat.all-component-colors(mat.define-theme((
+    color: (theme-type: dark, primary: mat.$azure-palette, tertiary: mat.$blue-palette),
+  )));
+}
+
+html, body { height: 100%; margin: 0; font-family: Roboto, 'Helvetica Neue', sans-serif; }
+body { background: var(--app-bg); color: var(--app-text); }
+
+h1 { font-size: 24px; font-weight: 500; margin: 0 0 16px; }
+.row { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+.row > mat-form-field { flex: 1 1 180px; }
+.card { background: var(--app-card); color: var(--app-text); border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px var(--app-shadow); }
+table { width: 100%; }
+.num { text-align: right; }
+.muted { color: var(--app-muted); }
+.danger { color: var(--app-danger); }
+.ok { color: var(--app-ok); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.kpi .label { color: var(--app-muted); font-size: 13px; }
+.kpi .value { font-size: 26px; font-weight: 500; }
