@@ -1,4 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { Category, Product } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
@@ -43,7 +45,7 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, co
 
     <div class="card">
       <mat-form-field style="width: 100%"><mat-label>Buscar por nombre, SKU o marca</mat-label>
-        <input matInput [ngModel]="q" (ngModelChange)="q = $event; load()"></mat-form-field>
+        <input matInput [ngModel]="q" (ngModelChange)="onSearch($event)"></mat-form-field>
       <table mat-table [dataSource]="items()">
         <ng-container matColumnDef="sku"><th mat-header-cell *matHeaderCellDef>SKU</th><td mat-cell *matCellDef="let p">{{ p.sku }}</td></ng-container>
         <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Producto</th>
@@ -72,8 +74,17 @@ export class ProductsComponent implements OnInit {
   q = '';
   cols = ['sku', 'name', 'cost', 'price', 'stock', 'actions'];
 
+  private search$ = new Subject<string>();
+
+  constructor() {
+    // Espera a que el usuario deje de teclear y descarta respuestas de búsquedas anteriores.
+    this.search$.pipe(debounceTime(250), distinctUntilChanged(), switchMap(q => this.api.products(q)), takeUntilDestroyed())
+      .subscribe(p => this.items.set(p));
+  }
+
   ngOnInit() { this.load(); this.loadCategories(); }
 
+  onSearch(q: string) { this.q = q; this.search$.next(q); }
   load() { this.api.products(this.q).subscribe(p => this.items.set(p)); }
   loadCategories() { this.api.categories().subscribe(c => this.categories.set(c)); }
 

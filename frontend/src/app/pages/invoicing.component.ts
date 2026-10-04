@@ -1,4 +1,6 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, distinctUntilChanged, finalize, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { Customer, Invoice, Product } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
@@ -16,7 +18,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
         <div class="row" style="margin-top:16px; align-items: flex-start">
           <div class="card" style="flex: 3 1 420px">
             <mat-form-field style="width:100%"><mat-label>Buscar producto (nombre, SKU, marca)</mat-label>
-              <input matInput [ngModel]="q" (ngModelChange)="q = $event; search()"></mat-form-field>
+              <input matInput [ngModel]="q" (ngModelChange)="onSearch($event)"></mat-form-field>
             <table mat-table [dataSource]="results()">
               <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Producto</th><td mat-cell *matCellDef="let p">{{ p.name }} <span class="muted">{{ p.sku }}</span></td></ng-container>
               <ng-container matColumnDef="price"><th mat-header-cell *matHeaderCellDef class="num">Precio</th><td mat-cell *matCellDef="let p" class="num">{{ p.price | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
@@ -54,7 +56,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
             <div class="row"><span style="flex:1">IVA</span><span>{{ totals().iva | currency:'COP':'symbol-narrow':'1.0-0' }}</span></div>
             <div class="row"><strong style="flex:1">Total</strong><strong>{{ totals().total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
             <br>
-            <button mat-flat-button color="primary" style="width:100%" [disabled]="!cart().length" (click)="submit()">Emitir factura</button>
+            <button mat-flat-button color="primary" style="width:100%" [disabled]="!cart().length || saving()" (click)="submit()">Emitir factura</button>
           </div>
         </div>
       </mat-tab>
@@ -93,6 +95,9 @@ export class InvoicingComponent implements OnInit {
   customers = signal<Customer[]>([]);
   invoices = signal<Invoice[]>([]);
   cart = signal<CartLine[]>([]);
+  saving = signal(false);
+  private search$ = new Subject<string>();
+  private customerNames = computed(() => new Map(this.customers().map(c => [c.id, c.name])));
   customerId: number | null = null;
   paymentType = 'CONTADO';
   q = '';
@@ -111,22 +116,28 @@ export class InvoicingComponent implements OnInit {
     return { subtotal, iva, total: subtotal + iva };
   });
 
+  constructor() {
+    // Espera a que el usuario deje de teclear y descarta respuestas de búsquedas anteriores.
+    this.search$.pipe(debounceTime(250), distinctUntilChanged(), switchMap(q => this.api.products(q)), takeUntilDestroyed())
+      .subscribe(p => this.results.set(p.filter(x => x.active)));
+  }
+
   ngOnInit() {
     this.search();
     this.api.customers().subscribe(c => this.customers.set(c));
     this.loadInvoices();
   }
 
+  onSearch(q: string) { this.q = q; this.search$.next(q); }
   search() { this.api.products(this.q).subscribe(p => this.results.set(p.filter(x => x.active))); }
   loadInvoices() { this.api.invoices(this.from, this.to).subscribe(i => this.invoices.set(i)); }
-  customerName(id?: number) { return id ? this.customers().find(c => c.id === id)?.name ?? id : 'Consumidor final'; }
+  customerName(id?: number) { return id ? this.customerNames().get(id) ?? id : 'Consumidor final'; }
   pdfUrl(id: number) { return this.api.invoicePdfUrl(id); }
 
   add(p: Product) {
     const existing = this.cart().find(l => l.product.id === p.id);
     if (existing) existing.quantity++;
-    else this.cart.update(c => [...c, { product: p, quantity: 1, unitPrice: p.price }]);
-    this.cart.set([...this.cart()]);
+    this.cart.update(c => existing ? [...c] : [...c, { product: p, quantity: 1, unitPrice: p.price }]);
   }
 
   touch() { this.cart.set([...this.cart()]); }
@@ -134,11 +145,13 @@ export class InvoicingComponent implements OnInit {
   remove(l: CartLine) { this.cart.update(c => c.filter(x => x !== l)); }
 
   submit() {
+    if (this.saving()) return; // evita facturas duplicadas por doble clic
+    this.saving.set(true);
     this.api.createInvoice({
       customerId: this.customerId,
       paymentType: this.paymentType,
       items: this.cart().map(l => ({ productId: l.product.id!, quantity: l.quantity, unitPrice: l.unitPrice })),
-    }).subscribe(inv => {
+    }).pipe(finalize(() => this.saving.set(false))).subscribe(inv => {
       this.snack.open(`Factura ${inv.number} emitida`, 'Ver PDF', { duration: 8000 }).onAction()
         .subscribe(() => window.open(this.pdfUrl(inv.id), '_blank'));
       this.cart.set([]);
