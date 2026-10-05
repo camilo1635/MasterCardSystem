@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
+import { AuthService } from '../core/auth.service';
 import { CreditTransaction, Customer, CustomerCredit, Receivable } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
 
@@ -14,6 +15,7 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
     <h1>Clientes y crédito</h1>
     <mat-tab-group (selectedTabChange)="tab = $event.index; tab === 1 && loadReceivables()">
       <mat-tab label="Clientes">
+        @if (canWrite) {
         <div class="card" style="margin-top:16px">
           <h3>{{ form.id ? 'Editar cliente' : 'Nuevo cliente' }}</h3>
           <div class="row">
@@ -26,8 +28,9 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
             @if (form.id) { <button mat-button (click)="form = blank()">Cancelar</button> }
           </div>
         </div>
+        }
 
-        <div class="card">
+        <div class="card" [style.margin-top.px]="canWrite ? 0 : 16">
           <mat-form-field style="width:100%"><mat-label>Buscar por nombre o documento</mat-label>
             <input matInput [ngModel]="q" (ngModelChange)="q = $event; load()"></mat-form-field>
           <table mat-table [dataSource]="customers()">
@@ -38,7 +41,7 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
             <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let c">
                 <button mat-button (click)="openCredit(c)">Historial de crédito</button>
-                <button mat-icon-button (click)="edit(c)"><mat-icon>edit</mat-icon></button>
+                @if (canWrite) { <button mat-icon-button aria-label="Editar cliente" (click)="edit(c)"><mat-icon>edit</mat-icon></button> }
               </td></ng-container>
             <tr mat-header-row *matHeaderRowDef="cols"></tr>
             <tr mat-row *matRowDef="let r; columns: cols"></tr>
@@ -53,6 +56,7 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
               <div class="kpi"><div class="label">Saldo adeudado</div><div class="value" [class.danger]="s.balance > 0">{{ s.balance | currency:'COP':'symbol-narrow':'1.0-0' }}</div></div>
               <div class="kpi"><div class="label">Cupo disponible</div><div class="value">{{ s.available | currency:'COP':'symbol-narrow':'1.0-0' }}</div></div>
             </div>
+            @if (canWrite) {
             <div class="row">
               <mat-form-field><mat-label>Valor del abono</mat-label><input matInput type="number" min="1" [(ngModel)]="payAmount"></mat-form-field>
               <mat-form-field><mat-label>Método</mat-label>
@@ -60,6 +64,7 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
               <mat-form-field style="flex: 2 1 220px"><mat-label>Nota</mat-label><input matInput [(ngModel)]="payNote"></mat-form-field>
               <button mat-flat-button color="primary" [disabled]="!payAmount || s.balance <= 0" (click)="pay(s)">Registrar abono</button>
             </div>
+            }
             <table mat-table [dataSource]="history()">
               <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let t">{{ t.createdAt | date:'dd/MM/yy HH:mm' }}</td></ng-container>
               <ng-container matColumnDef="type"><th mat-header-cell *matHeaderCellDef>Tipo</th><td mat-cell *matCellDef="let t">{{ t.type }}</td></ng-container>
@@ -94,6 +99,8 @@ export class CustomersComponent implements OnInit {
   private api = inject(ApiService);
   private snack = inject(MatSnackBar);
 
+  /** Solo UX: ADMIN y VENDEDOR crean/editan clientes y registran abonos; CONTADOR solo consulta. */
+  canWrite = inject(AuthService).hasRole('ADMIN', 'VENDEDOR');
   customers = signal<Customer[]>([]);
   receivables = signal<Receivable[]>([]);
   selected = signal<CustomerCredit | null>(null);

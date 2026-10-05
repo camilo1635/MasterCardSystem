@@ -7,7 +7,7 @@ Stack: Spring Boot 3 (Java 17) · Angular 18 + Material · PostgreSQL 16. Login 
 
 ```bash
 docker compose up -d                 # PostgreSQL en localhost:5433
-cd backend && mvn spring-boot:run    # API en http://localhost:8080  (Swagger: /swagger-ui.html)
+cd backend && mvn spring-boot:run "-Dspring-boot.run.profiles=dev"    # API en http://localhost:8080  (Swagger: /swagger-ui.html)
 cd frontend && npm install && npx ng serve   # UI en http://localhost:4200
 ```
 

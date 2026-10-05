@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, finalize, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
+import { AuthService } from '../core/auth.service';
 import { Customer, Invoice, Product } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
 
@@ -15,6 +16,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
   template: `
     <h1>Facturación</h1>
     <mat-tab-group>
+      @if (canSell) {
       <mat-tab label="Nueva factura">
         <div class="row" style="margin-top:16px; align-items: flex-start">
           <div class="card" style="flex: 3 1 420px">
@@ -61,6 +63,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
           </div>
         </div>
       </mat-tab>
+      }
 
       <mat-tab label="Historial">
         <div class="card" style="margin-top:16px">
@@ -77,8 +80,8 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
             <ng-container matColumnDef="total"><th mat-header-cell *matHeaderCellDef class="num">Total</th><td mat-cell *matCellDef="let i" class="num">{{ i.total | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
             <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let i">
-                <a mat-icon-button [href]="pdfUrl(i.id)" target="_blank" title="PDF"><mat-icon>picture_as_pdf</mat-icon></a>
-                @if (i.status === 'EMITIDA') { <button mat-icon-button title="Anular" (click)="cancel(i)"><mat-icon>block</mat-icon></button> }
+                <button mat-icon-button title="PDF" aria-label="Ver PDF de la factura" (click)="openPdf(i.id)"><mat-icon>picture_as_pdf</mat-icon></button>
+                @if (canCancel && i.status === 'EMITIDA') { <button mat-icon-button title="Anular" aria-label="Anular factura" (click)="cancel(i)"><mat-icon>block</mat-icon></button> }
               </td></ng-container>
             <tr mat-header-row *matHeaderRowDef="cols"></tr>
             <tr mat-row *matRowDef="let r; columns: cols"></tr>
@@ -92,6 +95,10 @@ export class InvoicingComponent implements OnInit {
   private api = inject(ApiService);
   private snack = inject(MatSnackBar);
 
+  /** Solo UX: facturar es de ADMIN/VENDEDOR; anular es de ADMIN; CONTADOR solo consulta. */
+  private auth = inject(AuthService);
+  canSell = this.auth.hasRole('ADMIN', 'VENDEDOR');
+  canCancel = this.auth.hasRole('ADMIN');
   results = signal<Product[]>([]);
   customers = signal<Customer[]>([]);
   invoices = signal<Invoice[]>([]);
@@ -133,7 +140,20 @@ export class InvoicingComponent implements OnInit {
   search() { this.api.products(this.q).subscribe(p => this.results.set(p.filter(x => x.active))); }
   loadInvoices() { this.api.invoices(this.from, this.to).subscribe(i => this.invoices.set(i)); }
   customerName(id?: number) { return id ? this.customerNames().get(id) ?? id : 'Consumidor final'; }
-  pdfUrl(id: number) { return this.api.invoicePdfUrl(id); }
+
+  /** El PDF requiere el token: se pide como blob y se abre en una pestaña (o se descarga si el navegador bloquea la ventana). */
+  openPdf(id: number) {
+    const win = window.open('', '_blank'); // se abre en el clic para no ser bloqueada por el navegador
+    this.api.invoicePdf(id).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        if (win) win.location.href = url;
+        else { const a = document.createElement('a'); a.href = url; a.download = `factura-${id}.pdf`; a.click(); }
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      },
+      error: () => win?.close(),
+    });
+  }
 
   add(p: Product) {
     const existing = this.cart().find(l => l.product.id === p.id);
@@ -154,7 +174,7 @@ export class InvoicingComponent implements OnInit {
       items: this.cart().map(l => ({ productId: l.product.id!, quantity: l.quantity, unitPrice: l.unitPrice })),
     }).pipe(finalize(() => this.saving.set(false))).subscribe(inv => {
       this.snack.open(`Factura ${inv.number} emitida`, 'Ver PDF', { duration: 8000 }).onAction()
-        .subscribe(() => window.open(this.pdfUrl(inv.id), '_blank'));
+        .subscribe(() => this.openPdf(inv.id));
       this.cart.set([]);
       this.paymentType = 'CONTADO';
       this.search();

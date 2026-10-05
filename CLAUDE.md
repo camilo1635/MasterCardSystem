@@ -8,7 +8,7 @@ Sistema de facturación, inventario, crédito de clientes y contabilidad para un
 - DB: `docker compose up -d` (Postgres en **localhost:5433**; el 5432 lo ocupa un Postgres nativo de Windows, no tocarlo).
 
 ```bash
-cd backend && SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run   # API :8080; Swagger en /swagger-ui.html solo con perfil dev
+cd backend && mvn spring-boot:run "-Dspring-boot.run.profiles=dev"   # (funciona en PowerShell y bash) API :8080; Swagger en /swagger-ui.html solo con perfil dev
 cd backend && mvn test -Dtest='SalesFlowIT,SecurityIT'   # requiere Docker (Testcontainers)
 cd frontend && npx ng serve                    # UI :4200
 cd frontend && npx ng build                    # verifica que compile

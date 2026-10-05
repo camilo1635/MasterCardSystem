@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
+import { AuthService } from '../core/auth.service';
 import { InventoryMovement, Product } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
 
@@ -10,6 +11,7 @@ import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
   imports: SHARED_IMPORTS,
   template: `
     <h1>Inventario</h1>
+    @if (canAdjust) {
     <div class="card">
       <h3>Ajuste manual de stock</h3>
       <p class="muted">Use cantidad positiva para sumar (conteo, hallazgo) y negativa para restar (merma, daño). Las entradas por compra se hacen en Compras.</p>
@@ -23,6 +25,7 @@ import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
         <button mat-flat-button color="primary" [disabled]="!productId || !qty" (click)="adjust()">Aplicar ajuste</button>
       </div>
     </div>
+    }
 
     <div class="card">
       <h3>Movimientos recientes</h3>
@@ -49,6 +52,8 @@ export class InventoryComponent implements OnInit {
   private api = inject(ApiService);
   private snack = inject(MatSnackBar);
 
+  /** Solo UX: los ajustes de stock son de ADMIN. */
+  canAdjust = inject(AuthService).hasRole('ADMIN');
   products = signal<Product[]>([]);
   movements = signal<InventoryMovement[]>([]);
   productNames = computed(() => new Map(this.products().map(p => [p.id!, p.name])));

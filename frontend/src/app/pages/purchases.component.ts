@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
+import { AuthService } from '../core/auth.service';
 import { Product, Purchase, Supplier } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS, today } from '../core/shared';
 
@@ -13,6 +14,7 @@ interface Line { productId: number | null; quantity: number; unitCost: number; }
   template: `
     <h1>Compras y proveedores</h1>
     <mat-tab-group>
+      @if (canWrite) {
       <mat-tab label="Nueva compra">
         <div class="card" style="margin-top:16px">
           <div class="row">
@@ -43,6 +45,7 @@ interface Line { productId: number | null; quantity: number; unitCost: number; }
           </div>
         </div>
       </mat-tab>
+      }
 
       <mat-tab label="Historial">
         <div class="card" style="margin-top:16px">
@@ -61,6 +64,7 @@ interface Line { productId: number | null; quantity: number; unitCost: number; }
 
       <mat-tab label="Proveedores">
         <div class="card" style="margin-top:16px">
+          @if (canWrite) {
           <div class="row">
             <mat-form-field><mat-label>NIT</mat-label><input matInput [(ngModel)]="sup.nit"></mat-form-field>
             <mat-form-field style="flex: 2 1 240px"><mat-label>Nombre</mat-label><input matInput [(ngModel)]="sup.name"></mat-form-field>
@@ -68,6 +72,7 @@ interface Line { productId: number | null; quantity: number; unitCost: number; }
             <mat-form-field><mat-label>Email</mat-label><input matInput [(ngModel)]="sup.email"></mat-form-field>
             <button mat-flat-button color="primary" [disabled]="!sup.name" (click)="saveSupplier()">Guardar proveedor</button>
           </div>
+          }
           <table mat-table [dataSource]="suppliers()">
             <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Nombre</th><td mat-cell *matCellDef="let s">{{ s.name }}</td></ng-container>
             <ng-container matColumnDef="nit"><th mat-header-cell *matHeaderCellDef>NIT</th><td mat-cell *matCellDef="let s">{{ s.nit }}</td></ng-container>
@@ -84,6 +89,8 @@ export class PurchasesComponent implements OnInit {
   private api = inject(ApiService);
   private snack = inject(MatSnackBar);
 
+  /** Solo UX: registrar compras y proveedores es de ADMIN; CONTADOR solo consulta. */
+  canWrite = inject(AuthService).hasRole('ADMIN');
   suppliers = signal<Supplier[]>([]);
   products = signal<Product[]>([]);
   purchases = signal<Purchase[]>([]);

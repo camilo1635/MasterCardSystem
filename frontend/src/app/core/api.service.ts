@@ -2,12 +2,13 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  Account, Category, CreditTransaction, Customer, CustomerCredit, DashboardSummary, Expense, IncomeStatement,
+  Account, AppUser, AuthResponse, AuthUser, Category, CreditTransaction, Customer, CustomerCredit, DashboardSummary, Expense, IncomeStatement,
   InventoryMovement, Invoice, InvoiceRequest, JournalEntry, Product, Purchase, PurchaseRequest, Receivable,
-  Supplier, TrialBalanceRow,
+  Supplier, TrialBalanceRow, UserCreate, UserUpdate,
 } from './models';
+import { environment } from '../../environments/environment';
 
-export const API_URL = 'http://localhost:8080/api';
+export const API_URL = environment.apiUrl;
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -16,6 +17,20 @@ export class ApiService {
   private range(from: string, to: string) {
     return new HttpParams().set('from', from).set('to', to);
   }
+
+  // Autenticación (la cookie de refresh viaja con withCredentials)
+  login(username: string, password: string) {
+    return this.http.post<AuthResponse>(`${API_URL}/auth/login`, { username, password }, { withCredentials: true });
+  }
+  refresh() { return this.http.post<AuthResponse>(`${API_URL}/auth/refresh`, null, { withCredentials: true }); }
+  logout() { return this.http.post<void>(`${API_URL}/auth/logout`, null, { withCredentials: true }); }
+  me() { return this.http.get<AuthUser>(`${API_URL}/auth/me`, { withCredentials: true }); }
+
+  // Usuarios (solo ADMIN)
+  users() { return this.http.get<AppUser[]>(`${API_URL}/users`); }
+  createUser(u: UserCreate) { return this.http.post<AppUser>(`${API_URL}/users`, u); }
+  updateUser(id: number, u: UserUpdate) { return this.http.put<AppUser>(`${API_URL}/users/${id}`, u); }
+  deleteUser(id: number) { return this.http.delete<void>(`${API_URL}/users/${id}`); }
 
   dashboard(): Observable<DashboardSummary> { return this.http.get<DashboardSummary>(`${API_URL}/dashboard`); }
 
@@ -67,7 +82,7 @@ export class ApiService {
   }
   createInvoice(r: InvoiceRequest) { return this.http.post<Invoice>(`${API_URL}/invoices`, r); }
   cancelInvoice(id: number) { return this.http.post<Invoice>(`${API_URL}/invoices/${id}/cancel`, {}); }
-  invoicePdfUrl(id: number) { return `${API_URL}/invoices/${id}/pdf`; }
+  invoicePdf(id: number) { return this.http.get(`${API_URL}/invoices/${id}/pdf`, { responseType: 'blob' }); }
 
   // Contabilidad
   accounts() { return this.http.get<Account[]>(`${API_URL}/accounting/accounts`); }

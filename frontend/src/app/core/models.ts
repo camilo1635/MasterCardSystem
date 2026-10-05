@@ -57,3 +57,12 @@ export interface IncomeStatement { income: number; costOfSales: number; grossPro
 export interface DashboardSummary {
   salesToday: number; invoicesToday: number; salesMonth: number; receivable: number; lowStock: Product[];
 }
+
+export type Role = 'ADMIN' | 'VENDEDOR' | 'CONTADOR';
+export const ROLE_LABELS: Record<Role, string> = { ADMIN: 'Administrador', VENDEDOR: 'Vendedor', CONTADOR: 'Contador' };
+
+export interface AuthUser { id: number; username: string; role: Role; }
+export interface AuthResponse { accessToken: string; tokenType: string; expiresIn: number; user: AuthUser; }
+export interface AppUser { id: number; username: string; role: Role; active: boolean; locked: boolean; createdAt: string; }
+export interface UserCreate { username: string; password: string; role: Role; }
+export interface UserUpdate { role: Role; active: boolean; password?: string; }

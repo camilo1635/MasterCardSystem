@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
+import { AuthService } from '../core/auth.service';
 import { Category, Product } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
 
@@ -14,6 +15,7 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, co
   imports: SHARED_IMPORTS,
   template: `
     <h1>Productos</h1>
+    @if (canEdit) {
     <div class="card">
       <h3>{{ form.id ? 'Editar producto' : 'Nuevo producto' }}</h3>
       <div class="row">
@@ -43,6 +45,7 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, co
         <button mat-stroked-button (click)="addCategory()">Agregar categoría</button>
       </div>
     </div>
+    }
 
     <div class="card">
       <mat-form-field style="width: 100%"><mat-label>Buscar por nombre, SKU o marca</mat-label>
@@ -56,7 +59,7 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, co
         <ng-container matColumnDef="stock"><th mat-header-cell *matHeaderCellDef class="num">Stock</th>
           <td mat-cell *matCellDef="let p" class="num" [class.danger]="p.stock <= p.minStock">{{ p.stock }}</td></ng-container>
         <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef></th>
-          <td mat-cell *matCellDef="let p"><button mat-icon-button (click)="edit(p)"><mat-icon>edit</mat-icon></button></td></ng-container>
+          <td mat-cell *matCellDef="let p"><button mat-icon-button aria-label="Editar producto" (click)="edit(p)"><mat-icon>edit</mat-icon></button></td></ng-container>
         <tr mat-header-row *matHeaderRowDef="cols"></tr>
         <tr mat-row *matRowDef="let r; columns: cols"></tr>
       </table>
@@ -73,7 +76,9 @@ export class ProductsComponent implements OnInit {
   categoryId: number | null = null;
   newCategory = '';
   q = '';
-  cols = ['sku', 'name', 'cost', 'price', 'stock', 'actions'];
+  /** Solo UX: crear/editar productos y categorías es de ADMIN. */
+  canEdit = inject(AuthService).hasRole('ADMIN');
+  cols = this.canEdit ? ['sku', 'name', 'cost', 'price', 'stock', 'actions'] : ['sku', 'name', 'cost', 'price', 'stock'];
 
   private search$ = new Subject<string>();
 
