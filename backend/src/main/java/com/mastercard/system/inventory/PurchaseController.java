@@ -1,5 +1,6 @@
 package com.mastercard.system.inventory;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.mastercard.system.common.NotFoundException;
 import com.mastercard.system.inventory.PurchaseService.PurchaseRequest;
 import jakarta.validation.Valid;
@@ -19,11 +20,13 @@ public class PurchaseController {
     private final SupplierRepository suppliers;
 
     @GetMapping("/suppliers")
+    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     public List<Supplier> suppliers() {
         return suppliers.findAll();
     }
 
     @PostMapping("/suppliers")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     public Supplier createSupplier(@Valid @RequestBody Supplier s) {
         s.setId(null);
@@ -31,6 +34,7 @@ public class PurchaseController {
     }
 
     @PutMapping("/suppliers/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public Supplier updateSupplier(@PathVariable Long id, @Valid @RequestBody Supplier s) {
         suppliers.findById(id).orElseThrow(() -> new NotFoundException("Proveedor", id));
         s.setId(id);
@@ -38,12 +42,14 @@ public class PurchaseController {
     }
 
     @GetMapping("/purchases")
+    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     @Transactional(readOnly = true)
     public List<Purchase> purchases() {
         return purchases.findAllWithItems();
     }
 
     @PostMapping("/purchases")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     public Purchase create(@Valid @RequestBody PurchaseRequest r) {
         return service.create(r);

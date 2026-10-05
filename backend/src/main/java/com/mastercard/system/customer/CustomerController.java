@@ -1,5 +1,6 @@
 package com.mastercard.system.customer;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.mastercard.system.common.NotFoundException;
 import com.mastercard.system.credit.CreditService;
 import com.mastercard.system.credit.CreditTransaction;
@@ -13,12 +14,15 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/customers")
 @RequiredArgsConstructor
+@Slf4j
 public class CustomerController {
 
     private final CustomerRepository customers;
@@ -42,6 +46,7 @@ public class CustomerController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN','VENDEDOR')")
     @ResponseStatus(HttpStatus.CREATED)
     public Customer create(@Valid @RequestBody Customer c) {
         c.setId(null);
@@ -49,6 +54,7 @@ public class CustomerController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','VENDEDOR')")
     public Customer update(@PathVariable Long id, @Valid @RequestBody Customer c) {
         get(id);
         c.setId(id);
@@ -71,9 +77,12 @@ public class CustomerController {
     }
 
     @PostMapping("/{id}/payments")
+    @PreAuthorize("hasAnyRole('ADMIN','VENDEDOR')")
     @ResponseStatus(HttpStatus.CREATED)
-    public CreditTransaction pay(@PathVariable Long id, @Valid @RequestBody PaymentRequest r) {
-        return credit.pay(id, r.amount(), r.method() == null ? "EFECTIVO" : r.method(), r.note());
+    public CreditTransaction pay(@PathVariable Long id, @Valid @RequestBody PaymentRequest r, Authentication auth) {
+        CreditTransaction t = credit.pay(id, r.amount(), r.method() == null ? "EFECTIVO" : r.method(), r.note());
+        log.info("Abono de {} al cliente {} registrado por {}", r.amount(), id, auth.getName());
+        return t;
     }
 
     /** Cartera: clientes con saldo pendiente. */

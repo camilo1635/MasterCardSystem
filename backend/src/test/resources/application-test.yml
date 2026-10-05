@@ -1,0 +1,8 @@
+app:
+  jwt:
+    secret: test-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+  cookie:
+    secure: false
+  admin:
+    username: admin
+    password: Admin-Test-12345

@@ -1,7 +1,7 @@
 # MasterCard Sound – Sistema de gestión
 
 Facturación, inventario, crédito de clientes y contabilidad para un negocio de audio y accesorios para carro.
-Stack: Spring Boot 3 (Java 17) · Angular 18 + Material · PostgreSQL 16. Sin login (por ahora).
+Stack: Spring Boot 3 (Java 17) · Angular 18 + Material · PostgreSQL 16. Login JWT con roles (ver CLAUDE.md, sección Seguridad).
 
 ## Arranque
 
@@ -30,7 +30,6 @@ cd backend && mvn test -Dtest=SalesFlowIT    # requiere Docker (Testcontainers)
 
 ## Pendiente / siguientes fases
 
-- Login y roles (Spring Security).
 - Facturación electrónica DIAN (requiere proveedor tecnológico).
 - Abonos aplicados a una factura específica y antigüedad de cartera.
 - Si se anula una factura a crédito ya abonada, el cliente queda con saldo a favor (negativo).

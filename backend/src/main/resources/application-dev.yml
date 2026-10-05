@@ -1,0 +1,15 @@
+# Perfil de desarrollo local: SPRING_PROFILES_ACTIVE=dev. NUNCA usar en producción.
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-change-me-0123456789-abcdefghijkl}
+  cookie:
+    secure: ${COOKIE_SECURE:false}
+  admin:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:admin-dev-1234}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

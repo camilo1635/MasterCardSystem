@@ -28,4 +28,26 @@ server:
     mime-types: application/json
 
 app:
-  cors-origins: http://localhost:4200
+  cors-origins: ${CORS_ORIGINS:http://localhost:4200}
+  jwt:
+    # Obligatorio (mín. 32 bytes / 256 bits). Sin valor por defecto: en dev lo da application-dev.yml.
+    secret: ${JWT_SECRET:}
+    access-minutes: 30
+    refresh-hours: 8
+  cookie:
+    # En producción (https) debe ser true; en dev (http) se pone false.
+    secure: ${COOKIE_SECURE:true}
+    name: refresh_token
+  security:
+    max-failed-attempts: 5
+    lock-minutes: 15
+  admin:
+    username: ${ADMIN_USERNAME:}
+    password: ${ADMIN_PASSWORD:}
+
+# Swagger apagado salvo en el perfil dev.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

@@ -1,5 +1,6 @@
 package com.mastercard.system.product;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.mastercard.system.common.NotFoundException;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -21,6 +22,7 @@ public class ProductController {
     }
 
     @PostMapping("/categories")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     public Category createCategory(@Valid @RequestBody Category c) {
         c.setId(null);
@@ -28,6 +30,7 @@ public class ProductController {
     }
 
     @DeleteMapping("/categories/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteCategory(@PathVariable Long id) {
         categories.deleteById(id);
@@ -50,6 +53,7 @@ public class ProductController {
 
     /** El stock inicial se carga con un movimiento de inventario (o compra), no desde aquí. */
     @PostMapping("/products")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     public Product create(@Valid @RequestBody Product p) {
         p.setId(null);
@@ -58,6 +62,7 @@ public class ProductController {
     }
 
     @PutMapping("/products/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public Product update(@PathVariable Long id, @Valid @RequestBody Product in) {
         Product p = get(id);
         p.setSku(in.getSku());

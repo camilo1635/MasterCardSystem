@@ -1,5 +1,6 @@
 package com.mastercard.system.inventory;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
@@ -25,6 +26,7 @@ public class InventoryController {
 
     /** quantity con signo: +5 suma, -2 resta. */
     @PostMapping("/adjust")
+    @PreAuthorize("hasRole('ADMIN')")
     public Product adjust(@Valid @RequestBody AdjustRequest r) {
         return service.adjust(r.productId(), r.quantity(), r.note());
     }

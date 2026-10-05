@@ -1,10 +1,13 @@
 package com.mastercard.system.sales;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.mastercard.system.sales.InvoiceService.InvoiceRequest;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/invoices")
 @RequiredArgsConstructor
+@Slf4j
 public class InvoiceController {
 
     private final InvoiceService service;
@@ -41,14 +45,18 @@ public class InvoiceController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN','VENDEDOR')")
     @ResponseStatus(HttpStatus.CREATED)
     public Invoice create(@Valid @RequestBody InvoiceRequest r) {
         return service.create(r);
     }
 
     @PostMapping("/{id}/cancel")
-    public Invoice cancel(@PathVariable Long id) {
-        return service.cancel(id);
+    @PreAuthorize("hasRole('ADMIN')")
+    public Invoice cancel(@PathVariable Long id, Authentication auth) {
+        Invoice inv = service.cancel(id);
+        log.info("Factura {} anulada por {}", id, auth.getName());
+        return inv;
     }
 
     @GetMapping("/{id}/pdf")
