@@ -25,7 +25,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
               <ng-container matColumnDef="price"><th mat-header-cell *matHeaderCellDef class="num">Precio</th><td mat-cell *matCellDef="let p" class="num">{{ p.price | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
               <ng-container matColumnDef="stock"><th mat-header-cell *matHeaderCellDef class="num">Cantidad</th><td mat-cell *matCellDef="let p" class="num" [class.danger]="p.stock === 0">{{ p.stock }}</td></ng-container>
               <ng-container matColumnDef="add"><th mat-header-cell *matHeaderCellDef></th>
-                <td mat-cell *matCellDef="let p"><button mat-icon-button [disabled]="p.stock === 0" (click)="add(p)"><mat-icon>add_shopping_cart</mat-icon></button></td></ng-container>
+                <td mat-cell *matCellDef="let p"><button mat-icon-button [disabled]="p.stock <= 0" [title]="p.stock <= 0 ? 'Sin cantidad disponible' : 'Agregar'" (click)="add(p)"><mat-icon>add_shopping_cart</mat-icon></button></td></ng-container>
               <tr mat-header-row *matHeaderRowDef="searchCols"></tr>
               <tr mat-row *matRowDef="let r; columns: searchCols"></tr>
             </table>
@@ -120,7 +120,7 @@ export class InvoicingComponent implements OnInit {
   constructor() {
     // Espera a que el usuario deje de teclear y descarta respuestas de búsquedas anteriores.
     this.search$.pipe(debounceTime(250), distinctUntilChanged(), switchMap(q => this.api.products(q)), takeUntilDestroyed())
-      .subscribe(p => this.results.set(p.filter(x => x.active)));
+      .subscribe(p => this.results.set(p));
   }
 
   ngOnInit() {
@@ -130,7 +130,7 @@ export class InvoicingComponent implements OnInit {
   }
 
   onSearch(q: string) { this.q = q; this.search$.next(q); }
-  search() { this.api.products(this.q).subscribe(p => this.results.set(p.filter(x => x.active))); }
+  search() { this.api.products(this.q).subscribe(p => this.results.set(p)); }
   loadInvoices() { this.api.invoices(this.from, this.to).subscribe(i => this.invoices.set(i)); }
   customerName(id?: number) { return id ? this.customerNames().get(id) ?? id : 'Consumidor final'; }
 

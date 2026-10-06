@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  Account, AuthResponse, AuthUser, Category, CreditTransaction, Customer, CustomerCredit, DashboardSummary, Expense, IncomeStatement,
+  Account, AuthResponse, AuthUser, CreditTransaction, Customer, CustomerCredit, DashboardSummary, Expense, IncomeStatement,
   InventoryMovement, Invoice, InvoiceRequest, JournalEntry, Product, Purchase, PurchaseRequest, Receivable,
   Supplier, TrialBalanceRow,
 } from './models';
@@ -29,8 +29,6 @@ export class ApiService {
   dashboard(): Observable<DashboardSummary> { return this.http.get<DashboardSummary>(`${API_URL}/dashboard`); }
 
   // Productos
-  categories() { return this.http.get<Category[]>(`${API_URL}/categories`); }
-  createCategory(c: Category) { return this.http.post<Category>(`${API_URL}/categories`, c); }
   products(q = '') { return this.http.get<Product[]>(`${API_URL}/products`, { params: new HttpParams().set('q', q) }); }
   saveProduct(p: Product) {
     return p.id ? this.http.put<Product>(`${API_URL}/products/${p.id}`, p) : this.http.post<Product>(`${API_URL}/products`, p);
@@ -42,7 +40,7 @@ export class ApiService {
     if (productId) params = params.set('productId', productId);
     return this.http.get<InventoryMovement[]>(`${API_URL}/inventory/movements`, { params });
   }
-  adjust(productId: number, quantity: number, note: string) {
+  adjust(productId: number, quantity: number, note?: string) {
     return this.http.post<Product>(`${API_URL}/inventory/adjust`, { productId, quantity, note });
   }
   suppliers() { return this.http.get<Supplier[]>(`${API_URL}/suppliers`); }

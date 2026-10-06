@@ -13,25 +13,6 @@ import org.springframework.web.bind.annotation.*;
 public class ProductController {
 
     private final ProductRepository products;
-    private final CategoryRepository categories;
-
-    @GetMapping("/categories")
-    public List<Category> categories() {
-        return categories.findAll();
-    }
-
-    @PostMapping("/categories")
-    @ResponseStatus(HttpStatus.CREATED)
-    public Category createCategory(@Valid @RequestBody Category c) {
-        c.setId(null);
-        return categories.save(c);
-    }
-
-    @DeleteMapping("/categories/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteCategory(@PathVariable Long id) {
-        categories.deleteById(id);
-    }
 
     @GetMapping("/products")
     public List<Product> list(@RequestParam(required = false) String q) {
@@ -63,12 +44,10 @@ public class ProductController {
         p.setSku(in.getSku());
         p.setName(in.getName());
         p.setBrand(in.getBrand());
-        p.setCategory(in.getCategory());
         p.setCost(in.getCost());
         p.setPrice(in.getPrice());
         p.setIvaRate(in.getIvaRate());
         p.setMinStock(in.getMinStock());
-        p.setActive(in.isActive());
         return products.save(p);
     }
 }

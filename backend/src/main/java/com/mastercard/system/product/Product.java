@@ -24,10 +24,6 @@ public class Product {
 
     private String brand;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "category_id")
-    private Category category;
-
     @NotNull
     @DecimalMin("0")
     private BigDecimal cost = BigDecimal.ZERO;
@@ -43,6 +39,4 @@ public class Product {
     private int stock;
 
     private int minStock;
-
-    private boolean active = true;
 }

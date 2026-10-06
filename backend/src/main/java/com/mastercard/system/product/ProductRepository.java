@@ -22,7 +22,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             order by p.name""")
     List<Product> search(@Param("q") String q);
 
-    @Query("select p from Product p where p.active = true and p.stock <= p.minStock order by p.stock")
+    @Query("select p from Product p where p.stock <= p.minStock order by p.stock")
     List<Product> findLowStock();
 
 }

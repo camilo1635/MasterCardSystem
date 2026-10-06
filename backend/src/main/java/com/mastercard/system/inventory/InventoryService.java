@@ -35,7 +35,7 @@ public class InventoryService {
                 .orElseThrow(() -> new NotFoundException("Producto", productId));
         int newStock = p.getStock() + signedQty;
         if (newStock < 0) {
-            throw new BusinessException("Stock insuficiente de '" + p.getName() + "': disponible "
+            throw new BusinessException("Cantidad insuficiente de '" + p.getName() + "': disponible "
                     + p.getStock() + ", requerido " + (-signedQty));
         }
         if (type == Type.ENTRADA && unitCost.signum() > 0 && newStock > 0) {

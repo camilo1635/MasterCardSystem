@@ -114,7 +114,7 @@ class SalesFlowIT {
                 .isInstanceOf(BusinessException.class).hasMessageContaining("Cupo");
         assertThatThrownBy(() -> invoices.create(new InvoiceRequest(null, "CONTADO", null,
                 List.of(new InvoiceService.ItemRequest(p.getId(), 5, null)))))
-                .isInstanceOf(BusinessException.class).hasMessageContaining("Stock insuficiente");
+                .isInstanceOf(BusinessException.class).hasMessageContaining("Cantidad insuficiente");
 
         // Los fallos revierten todo: el stock no cambió.
         assertThat(products.findById(p.getId()).orElseThrow().getStock()).isEqualTo(1);

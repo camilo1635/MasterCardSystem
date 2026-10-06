@@ -1,8 +1,6 @@
-export interface Category { id?: number; name: string; }
-
 export interface Product {
-  id?: number; sku: string; name: string; brand?: string; category?: Category | null;
-  cost: number; price: number; ivaRate: number; stock: number; active: boolean;
+  id?: number; sku: string; name: string; brand?: string;
+  cost: number; price: number; ivaRate: number; stock: number;
 }
 
 export interface Customer {

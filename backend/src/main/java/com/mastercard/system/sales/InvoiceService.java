@@ -83,9 +83,6 @@ public class InvoiceService {
             if (p == null) {
                 throw new NotFoundException("Producto", i.productId());
             }
-            if (!p.isActive()) {
-                throw new BusinessException("Producto inactivo: " + p.getName());
-            }
             InvoiceItem it = new InvoiceItem();
             it.setInvoice(inv);
             it.setProductId(p.getId());

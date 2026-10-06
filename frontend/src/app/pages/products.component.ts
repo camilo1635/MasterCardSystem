@@ -2,10 +2,10 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
-import { Category, Product } from '../core/models';
+import { Product } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
 
-const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, cost: 0, price: 0, ivaRate: 19, stock: 0, active: true });
+const blank = (): Product => ({ sku: '', name: '', brand: '', cost: 0, price: 0, ivaRate: 19, stock: 0 });
 
 @Component({
   selector: 'app-products',
@@ -20,11 +20,6 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, co
         <mat-form-field><mat-label>SKU</mat-label><input matInput [(ngModel)]="form.sku"></mat-form-field>
         <mat-form-field style="flex: 2 1 300px"><mat-label>Nombre</mat-label><input matInput [(ngModel)]="form.name"></mat-form-field>
         <mat-form-field><mat-label>Marca</mat-label><input matInput [(ngModel)]="form.brand"></mat-form-field>
-        <mat-form-field><mat-label>Categoría</mat-label>
-          <mat-select [(ngModel)]="categoryId">
-            <mat-option [value]="null">Sin categoría</mat-option>
-            @for (c of categories(); track c.id) { <mat-option [value]="c.id">{{ c.name }}</mat-option> }
-          </mat-select></mat-form-field>
       </div>
       <div class="row">
         <mat-form-field><mat-label>Costo</mat-label><input matInput type="number" [(ngModel)]="form.cost"></mat-form-field>
@@ -35,16 +30,11 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, co
         } @else {
           <mat-form-field><mat-label>Cantidad inicial</mat-label><input matInput type="number" min="0" [(ngModel)]="initialQty"></mat-form-field>
         }
-        <mat-checkbox [(ngModel)]="form.active">Activo</mat-checkbox>
       </div>
       <div class="row">
         <button mat-flat-button color="primary" (click)="save()">Guardar</button>
         @if (form.id) { <button mat-button (click)="reset()">Cancelar</button> }
         <span class="muted">La cantidad solo cambia con compras, ventas, anulaciones y ajustes de Inventario.</span>
-      </div>
-      <div class="row">
-        <mat-form-field style="max-width:260px"><mat-label>Nueva categoría</mat-label><input matInput [(ngModel)]="newCategory"></mat-form-field>
-        <button mat-stroked-button (click)="addCategory()">Agregar categoría</button>
       </div>
     </div>
     
@@ -55,7 +45,7 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, co
       <table mat-table [dataSource]="items()">
         <ng-container matColumnDef="sku"><th mat-header-cell *matHeaderCellDef>SKU</th><td mat-cell *matCellDef="let p">{{ p.sku }}</td></ng-container>
         <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Producto</th>
-          <td mat-cell *matCellDef="let p">{{ p.name }} <span class="muted">{{ p.brand }}</span>@if (!p.active) { <em class="muted"> (inactivo)</em> }</td></ng-container>
+          <td mat-cell *matCellDef="let p">{{ p.name }} <span class="muted">{{ p.brand }}</span>@if (p.stock <= 0) { <em class="muted"> (sin cantidad)</em> }</td></ng-container>
         <ng-container matColumnDef="cost"><th mat-header-cell *matHeaderCellDef class="num">Costo</th><td mat-cell *matCellDef="let p" class="num">{{ p.cost | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
         <ng-container matColumnDef="price"><th mat-header-cell *matHeaderCellDef class="num">Precio</th><td mat-cell *matCellDef="let p" class="num">{{ p.price | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
         <ng-container matColumnDef="stock"><th mat-header-cell *matHeaderCellDef class="num">Cantidad</th>
@@ -73,11 +63,8 @@ export class ProductsComponent implements OnInit {
   private snack = inject(MatSnackBar);
 
   items = signal<Product[]>([]);
-  categories = signal<Category[]>([]);
   form: Product = blank();
-  categoryId: number | null = null;
   initialQty = 0;
-  newCategory = '';
   q = '';
   cols = ['sku', 'name', 'cost', 'price', 'stock', 'actions'];
 
@@ -89,27 +76,21 @@ export class ProductsComponent implements OnInit {
       .subscribe(p => this.items.set(p));
   }
 
-  ngOnInit() { this.load(); this.loadCategories(); }
+  ngOnInit() { this.load(); }
 
   onSearch(q: string) { this.q = q; this.search$.next(q); }
   load() { this.api.products(this.q).subscribe(p => this.items.set(p)); }
-  loadCategories() { this.api.categories().subscribe(c => this.categories.set(c)); }
 
-  edit(p: Product) { this.form = { ...p }; this.categoryId = p.category?.id ?? null; window.scrollTo({ top: 0, behavior: 'smooth' }); }
-  reset() { this.form = blank(); this.categoryId = null; this.initialQty = 0; }
+  edit(p: Product) { this.form = { ...p }; window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  reset() { this.form = blank(); this.initialQty = 0; }
 
   save() {
-    const body: Product = { ...this.form, category: this.categoryId ? { id: this.categoryId, name: '' } : null };
+    const body: Product = { ...this.form };
     const qty = this.form.id ? 0 : Math.floor(this.initialQty || 0);
     if (qty < 0) { this.snack.open('La cantidad inicial no puede ser negativa', undefined, { duration: 3000 }); return; }
     this.api.saveProduct(body).pipe(
       // La cantidad no viaja en el producto: se carga como un ajuste de inventario (movimiento + asiento).
       switchMap(p => qty > 0 ? this.api.adjust(p.id!, qty, 'Cantidad inicial').pipe(map(() => p)) : of(p)),
     ).subscribe(() => { this.snack.open('Producto guardado', undefined, { duration: 2500 }); this.reset(); this.load(); });
-  }
-
-  addCategory() {
-    if (!this.newCategory.trim()) return;
-    this.api.createCategory({ name: this.newCategory.trim() }).subscribe(() => { this.newCategory = ''; this.loadCategories(); });
   }
 }
