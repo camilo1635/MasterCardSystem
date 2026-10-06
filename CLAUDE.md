@@ -1,6 +1,6 @@
 # MasterCard Sound
 
-Sistema de facturación, inventario, crédito de clientes y contabilidad para un negocio de audio y accesorios de carro. Idioma de la UI y los mensajes de error: español. Moneda: COP. Login JWT con roles ADMIN / VENDEDOR / CONTADOR.
+Sistema de facturación, inventario, crédito de clientes y contabilidad para un negocio de audio y accesorios de carro. Idioma de la UI y los mensajes de error: español. Moneda: COP. Login JWT de un único usuario (dueño), sin roles.
 
 ## Stack y comandos
 - `backend/` – Spring Boot 3.3, Java 17, Maven, JPA + Flyway, PostgreSQL. Paquete base `com.mastercard.system`.
@@ -31,11 +31,11 @@ cd frontend && npx ng build                    # verifica que compile
 - Dinero siempre `BigDecimal` (`NUMERIC(14,2)`), redondeo con `common.Money`. Errores de negocio: `BusinessException` (400); no encontrado: `NotFoundException` (404).
 - Frontend: temas claro/oscuro con variables CSS `--app-*` en `styles.scss`; no usar colores fijos en componentes. Angular no admite spread (`...`) en templates: usar métodos.
 
-## Seguridad (login y roles)
+## Seguridad (login)
 - Paquete `security`: JWT HS256 stateless. Access token 30 min (`Authorization: Bearer`); refresh token 8 h en cookie `HttpOnly; SameSite=Strict` (path `/api/auth`, hash en tabla `refresh_token`, rotación con detección de reutilización). Bloqueo 15 min tras 5 intentos fallidos.
-- Variables de entorno: `JWT_SECRET` (obligatoria, >=32 caracteres; la app no arranca sin ella salvo perfil `dev`), `COOKIE_SECURE` (true en prod con https), `ADMIN_USERNAME`/`ADMIN_PASSWORD` (siembran el primer ADMIN solo si no hay usuarios; clave 10-72 caracteres), `CORS_ORIGINS` vía `app.cors-origins`. Ver `.env.example`. El perfil `dev` trae valores locales (admin / admin-dev-1234) y habilita Swagger; no usarlo en producción.
-- La autorización vive en los controladores con `@PreAuthorize`; los servicios (`Propagation.MANDATORY`) no cambian. Roles: ADMIN todo; VENDEDOR vende, registra abonos y clientes; CONTADOR contabilidad, gastos y consulta. Gestión de usuarios: `/api/users` (solo ADMIN).
-- Todo endpoint requiere token salvo `/api/auth/login|refresh|logout`. Errores 401/403 en JSON `{"message": ...}`.
+- Variables de entorno: `JWT_SECRET` (obligatoria, >=32 caracteres; la app no arranca sin ella salvo perfil `dev`), `COOKIE_SECURE` (true en prod con https), `ADMIN_USERNAME`/`ADMIN_PASSWORD` (siembran el usuario dueño solo si no hay usuarios; clave 10-72 caracteres), `CORS_ORIGINS` vía `app.cors-origins`. Ver `.env.example`. El perfil `dev` trae valores locales (admin / admin-dev-1234) y habilita Swagger; no usarlo en producción.
+- No hay roles ni gestión de usuarios: cualquier usuario autenticado puede todo (el sistema tiene un único dueño). Migración `V4` eliminó `app_user.role`.
+- Todo endpoint requiere token salvo `/api/auth/login|refresh|logout`. Error 401 en JSON `{"message": ...}`.
 
 ## Pendiente
 Facturación electrónica DIAN, abonos aplicados a factura específica, antigüedad de cartera.

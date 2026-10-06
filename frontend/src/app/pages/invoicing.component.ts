@@ -2,7 +2,6 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, finalize, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
-import { AuthService } from '../core/auth.service';
 import { Customer, Invoice, Product } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
 
@@ -16,7 +15,6 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
   template: `
     <h1>Facturación</h1>
     <mat-tab-group>
-      @if (canSell) {
       <mat-tab label="Nueva factura">
         <div class="row" style="margin-top:16px; align-items: flex-start">
           <div class="card" style="flex: 3 1 420px">
@@ -25,7 +23,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
             <table mat-table [dataSource]="results()">
               <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Producto</th><td mat-cell *matCellDef="let p">{{ p.name }} <span class="muted">{{ p.sku }}</span></td></ng-container>
               <ng-container matColumnDef="price"><th mat-header-cell *matHeaderCellDef class="num">Precio</th><td mat-cell *matCellDef="let p" class="num">{{ p.price | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
-              <ng-container matColumnDef="stock"><th mat-header-cell *matHeaderCellDef class="num">Stock</th><td mat-cell *matCellDef="let p" class="num" [class.danger]="p.stock === 0">{{ p.stock }}</td></ng-container>
+              <ng-container matColumnDef="stock"><th mat-header-cell *matHeaderCellDef class="num">Cantidad</th><td mat-cell *matCellDef="let p" class="num" [class.danger]="p.stock === 0">{{ p.stock }}</td></ng-container>
               <ng-container matColumnDef="add"><th mat-header-cell *matHeaderCellDef></th>
                 <td mat-cell *matCellDef="let p"><button mat-icon-button [disabled]="p.stock === 0" (click)="add(p)"><mat-icon>add_shopping_cart</mat-icon></button></td></ng-container>
               <tr mat-header-row *matHeaderRowDef="searchCols"></tr>
@@ -63,7 +61,6 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
           </div>
         </div>
       </mat-tab>
-      }
 
       <mat-tab label="Historial">
         <div class="card" style="margin-top:16px">
@@ -81,7 +78,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
             <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let i">
                 <button mat-icon-button title="PDF" aria-label="Ver PDF de la factura" (click)="openPdf(i.id)"><mat-icon>picture_as_pdf</mat-icon></button>
-                @if (canCancel && i.status === 'EMITIDA') { <button mat-icon-button title="Anular" aria-label="Anular factura" (click)="cancel(i)"><mat-icon>block</mat-icon></button> }
+                @if (i.status === 'EMITIDA') { <button mat-icon-button title="Anular" aria-label="Anular factura" (click)="cancel(i)"><mat-icon>block</mat-icon></button> }
               </td></ng-container>
             <tr mat-header-row *matHeaderRowDef="cols"></tr>
             <tr mat-row *matRowDef="let r; columns: cols"></tr>
@@ -95,10 +92,6 @@ export class InvoicingComponent implements OnInit {
   private api = inject(ApiService);
   private snack = inject(MatSnackBar);
 
-  /** Solo UX: facturar es de ADMIN/VENDEDOR; anular es de ADMIN; CONTADOR solo consulta. */
-  private auth = inject(AuthService);
-  canSell = this.auth.hasRole('ADMIN', 'VENDEDOR');
-  canCancel = this.auth.hasRole('ADMIN');
   results = signal<Product[]>([]);
   customers = signal<Customer[]>([]);
   invoices = signal<Invoice[]>([]);
@@ -183,7 +176,7 @@ export class InvoicingComponent implements OnInit {
   }
 
   cancel(i: Invoice) {
-    if (!confirm(`¿Anular la factura ${i.number}? Se devolverá el stock y se revertirá el crédito.`)) return;
+    if (!confirm(`¿Anular la factura ${i.number}? Se devolverá la cantidad y se revertirá el crédito.`)) return;
     this.api.cancelInvoice(i.id).subscribe(() => { this.snack.open('Factura anulada', undefined, { duration: 2500 }); this.loadInvoices(); this.search(); });
   }
 }

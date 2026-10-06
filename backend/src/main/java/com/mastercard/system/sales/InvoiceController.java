@@ -1,6 +1,5 @@
 package com.mastercard.system.sales;
 
-import org.springframework.security.access.prepost.PreAuthorize;
 import com.mastercard.system.sales.InvoiceService.InvoiceRequest;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -45,14 +44,12 @@ public class InvoiceController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','VENDEDOR')")
     @ResponseStatus(HttpStatus.CREATED)
     public Invoice create(@Valid @RequestBody InvoiceRequest r) {
         return service.create(r);
     }
 
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasRole('ADMIN')")
     public Invoice cancel(@PathVariable Long id, Authentication auth) {
         Invoice inv = service.cancel(id);
         log.info("Factura {} anulada por {}", id, auth.getName());

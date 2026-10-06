@@ -1,12 +1,11 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
-import { AuthService } from '../core/auth.service';
 import { Category, Product } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
 
-const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, cost: 0, price: 0, ivaRate: 19, stock: 0, minStock: 0, active: true });
+const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, cost: 0, price: 0, ivaRate: 19, stock: 0, active: true });
 
 @Component({
   selector: 'app-products',
@@ -15,8 +14,7 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, co
   imports: SHARED_IMPORTS,
   template: `
     <h1>Productos</h1>
-    @if (canEdit) {
-    <div class="card">
+        <div class="card">
       <h3>{{ form.id ? 'Editar producto' : 'Nuevo producto' }}</h3>
       <div class="row">
         <mat-form-field><mat-label>SKU</mat-label><input matInput [(ngModel)]="form.sku"></mat-form-field>
@@ -32,20 +30,24 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, co
         <mat-form-field><mat-label>Costo</mat-label><input matInput type="number" [(ngModel)]="form.cost"></mat-form-field>
         <mat-form-field><mat-label>Precio (sin IVA)</mat-label><input matInput type="number" [(ngModel)]="form.price"></mat-form-field>
         <mat-form-field><mat-label>IVA %</mat-label><input matInput type="number" [(ngModel)]="form.ivaRate"></mat-form-field>
-        <mat-form-field><mat-label>Stock mínimo</mat-label><input matInput type="number" [(ngModel)]="form.minStock"></mat-form-field>
+        @if (form.id) {
+          <mat-form-field><mat-label>Cantidad</mat-label><input matInput type="number" [value]="form.stock" disabled></mat-form-field>
+        } @else {
+          <mat-form-field><mat-label>Cantidad inicial</mat-label><input matInput type="number" min="0" [(ngModel)]="initialQty"></mat-form-field>
+        }
         <mat-checkbox [(ngModel)]="form.active">Activo</mat-checkbox>
       </div>
       <div class="row">
         <button mat-flat-button color="primary" (click)="save()">Guardar</button>
         @if (form.id) { <button mat-button (click)="reset()">Cancelar</button> }
-        <span class="muted">El stock inicial se carga desde Compras o con un ajuste en Inventario.</span>
+        <span class="muted">La cantidad solo cambia con compras, ventas, anulaciones y ajustes de Inventario.</span>
       </div>
       <div class="row">
         <mat-form-field style="max-width:260px"><mat-label>Nueva categoría</mat-label><input matInput [(ngModel)]="newCategory"></mat-form-field>
         <button mat-stroked-button (click)="addCategory()">Agregar categoría</button>
       </div>
     </div>
-    }
+    
 
     <div class="card">
       <mat-form-field style="width: 100%"><mat-label>Buscar por nombre, SKU o marca</mat-label>
@@ -56,8 +58,8 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', category: null, co
           <td mat-cell *matCellDef="let p">{{ p.name }} <span class="muted">{{ p.brand }}</span>@if (!p.active) { <em class="muted"> (inactivo)</em> }</td></ng-container>
         <ng-container matColumnDef="cost"><th mat-header-cell *matHeaderCellDef class="num">Costo</th><td mat-cell *matCellDef="let p" class="num">{{ p.cost | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
         <ng-container matColumnDef="price"><th mat-header-cell *matHeaderCellDef class="num">Precio</th><td mat-cell *matCellDef="let p" class="num">{{ p.price | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
-        <ng-container matColumnDef="stock"><th mat-header-cell *matHeaderCellDef class="num">Stock</th>
-          <td mat-cell *matCellDef="let p" class="num" [class.danger]="p.stock <= p.minStock">{{ p.stock }}</td></ng-container>
+        <ng-container matColumnDef="stock"><th mat-header-cell *matHeaderCellDef class="num">Cantidad</th>
+          <td mat-cell *matCellDef="let p" class="num" [class.danger]="p.stock <= 0">{{ p.stock }}</td></ng-container>
         <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef></th>
           <td mat-cell *matCellDef="let p"><button mat-icon-button aria-label="Editar producto" (click)="edit(p)"><mat-icon>edit</mat-icon></button></td></ng-container>
         <tr mat-header-row *matHeaderRowDef="cols"></tr>
@@ -74,11 +76,10 @@ export class ProductsComponent implements OnInit {
   categories = signal<Category[]>([]);
   form: Product = blank();
   categoryId: number | null = null;
+  initialQty = 0;
   newCategory = '';
   q = '';
-  /** Solo UX: crear/editar productos y categorías es de ADMIN. */
-  canEdit = inject(AuthService).hasRole('ADMIN');
-  cols = this.canEdit ? ['sku', 'name', 'cost', 'price', 'stock', 'actions'] : ['sku', 'name', 'cost', 'price', 'stock'];
+  cols = ['sku', 'name', 'cost', 'price', 'stock', 'actions'];
 
   private search$ = new Subject<string>();
 
@@ -95,11 +96,16 @@ export class ProductsComponent implements OnInit {
   loadCategories() { this.api.categories().subscribe(c => this.categories.set(c)); }
 
   edit(p: Product) { this.form = { ...p }; this.categoryId = p.category?.id ?? null; window.scrollTo({ top: 0, behavior: 'smooth' }); }
-  reset() { this.form = blank(); this.categoryId = null; }
+  reset() { this.form = blank(); this.categoryId = null; this.initialQty = 0; }
 
   save() {
     const body: Product = { ...this.form, category: this.categoryId ? { id: this.categoryId, name: '' } : null };
-    this.api.saveProduct(body).subscribe(() => { this.snack.open('Producto guardado', undefined, { duration: 2500 }); this.reset(); this.load(); });
+    const qty = this.form.id ? 0 : Math.floor(this.initialQty || 0);
+    if (qty < 0) { this.snack.open('La cantidad inicial no puede ser negativa', undefined, { duration: 3000 }); return; }
+    this.api.saveProduct(body).pipe(
+      // La cantidad no viaja en el producto: se carga como un ajuste de inventario (movimiento + asiento).
+      switchMap(p => qty > 0 ? this.api.adjust(p.id!, qty, 'Cantidad inicial').pipe(map(() => p)) : of(p)),
+    ).subscribe(() => { this.snack.open('Producto guardado', undefined, { duration: 2500 }); this.reset(); this.load(); });
   }
 
   addCategory() {

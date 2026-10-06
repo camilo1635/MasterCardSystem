@@ -2,7 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Observable, catchError, finalize, of, shareReplay, tap } from 'rxjs';
 import { ApiService } from './api.service';
-import { AuthResponse, Role } from './models';
+import { AuthResponse } from './models';
 
 /** Sesión en memoria: el access token nunca se guarda en localStorage; la cookie de refresh restaura la sesión al recargar. */
 @Injectable({ providedIn: 'root' })
@@ -12,7 +12,6 @@ export class AuthService {
 
   private session = signal<AuthResponse | null>(null);
   user = computed(() => this.session()?.user ?? null);
-  role = computed(() => this.user()?.role ?? null);
   authenticated = computed(() => this.user() !== null);
   token = computed(() => this.session()?.accessToken ?? null);
 
@@ -50,10 +49,5 @@ export class AuthService {
     if (!this.router.url.startsWith('/login')) {
       this.router.navigate(['/login'], { queryParams: { returnUrl: this.router.url } });
     }
-  }
-
-  hasRole(...roles: Role[]): boolean {
-    const r = this.role();
-    return r !== null && roles.includes(r);
   }
 }

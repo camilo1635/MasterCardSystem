@@ -1,7 +1,7 @@
 # MasterCard Sound – Sistema de gestión
 
 Facturación, inventario, crédito de clientes y contabilidad para un negocio de audio y accesorios para carro.
-Stack: Spring Boot 3 (Java 17) · Angular 18 + Material · PostgreSQL 16. Login JWT con roles (ver CLAUDE.md, sección Seguridad).
+Stack: Spring Boot 3 (Java 17) · Angular 18 + Material · PostgreSQL 16. Login JWT de un único usuario (dueño) (ver CLAUDE.md, sección Seguridad).
 
 ## Arranque
 

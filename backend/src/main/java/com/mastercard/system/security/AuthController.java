@@ -31,7 +31,7 @@ public class AuthController {
     public record LoginRequest(@NotBlank @Size(max = 50) String username,
                                @NotBlank @Size(max = 100) String password) {}
 
-    public record UserInfo(Long id, String username, Role role) {}
+    public record UserInfo(Long id, String username) {}
 
     public record TokenResponse(String accessToken, String tokenType, long expiresIn, UserInfo user) {}
 
@@ -58,11 +58,11 @@ public class AuthController {
         AppUser u = users.findByUsername(authentication.getName())
                 .filter(AppUser::isActive)
                 .orElseThrow(() -> new AuthException(HttpStatus.UNAUTHORIZED, "Sesión no válida"));
-        return new UserInfo(u.getId(), u.getUsername(), u.getRole());
+        return new UserInfo(u.getId(), u.getUsername());
     }
 
     private ResponseEntity<TokenResponse> respond(Session s) {
-        UserInfo info = new UserInfo(s.user().getId(), s.user().getUsername(), s.user().getRole());
+        UserInfo info = new UserInfo(s.user().getId(), s.user().getUsername());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie(s.refreshToken(), s.refreshMaxAge().toSeconds()).toString())
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")

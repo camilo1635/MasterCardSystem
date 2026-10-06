@@ -1,6 +1,5 @@
 package com.mastercard.system.customer;
 
-import org.springframework.security.access.prepost.PreAuthorize;
 import com.mastercard.system.common.NotFoundException;
 import com.mastercard.system.credit.CreditService;
 import com.mastercard.system.credit.CreditTransaction;
@@ -46,7 +45,6 @@ public class CustomerController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','VENDEDOR')")
     @ResponseStatus(HttpStatus.CREATED)
     public Customer create(@Valid @RequestBody Customer c) {
         c.setId(null);
@@ -54,7 +52,6 @@ public class CustomerController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','VENDEDOR')")
     public Customer update(@PathVariable Long id, @Valid @RequestBody Customer c) {
         get(id);
         c.setId(id);
@@ -77,7 +74,6 @@ public class CustomerController {
     }
 
     @PostMapping("/{id}/payments")
-    @PreAuthorize("hasAnyRole('ADMIN','VENDEDOR')")
     @ResponseStatus(HttpStatus.CREATED)
     public CreditTransaction pay(@PathVariable Long id, @Valid @RequestBody PaymentRequest r, Authentication auth) {
         CreditTransaction t = credit.pay(id, r.amount(), r.method() == null ? "EFECTIVO" : r.method(), r.note());

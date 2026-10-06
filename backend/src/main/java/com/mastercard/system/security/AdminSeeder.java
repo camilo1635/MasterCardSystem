@@ -8,11 +8,12 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-/** Siembra el primer ADMIN desde ADMIN_USERNAME / ADMIN_PASSWORD si aún no hay usuarios. */
+/** Siembra el usuario dueño desde ADMIN_USERNAME / ADMIN_PASSWORD si aún no hay usuarios. */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class AdminSeeder implements ApplicationRunner {
+    private static final int MIN_PASSWORD = 10;
     private final AppUserRepository users;
     private final PasswordEncoder encoder;
 
@@ -29,15 +30,14 @@ public class AdminSeeder implements ApplicationRunner {
             log.warn("No hay usuarios y ADMIN_USERNAME/ADMIN_PASSWORD no están definidos: nadie podrá iniciar sesión.");
             return;
         }
-        if (password.length() < UserController.MIN_PASSWORD || password.length() > 72) {
+        if (password.length() < MIN_PASSWORD || password.length() > 72) {
             throw new IllegalStateException(
-                    "ADMIN_PASSWORD debe tener entre " + UserController.MIN_PASSWORD + " y 72 caracteres");
+                    "ADMIN_PASSWORD debe tener entre " + MIN_PASSWORD + " y 72 caracteres");
         }
         AppUser u = new AppUser();
         u.setUsername(AuthService.normalize(username));
         u.setPasswordHash(encoder.encode(password));
-        u.setRole(Role.ADMIN);
         users.save(u);
-        log.info("Usuario administrador inicial '{}' creado", u.getUsername());
+        log.info("Usuario inicial '{}' creado", u.getUsername());
     }
 }

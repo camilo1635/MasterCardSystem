@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
-import { AuthService } from '../core/auth.service';
 import { InventoryMovement, Product } from '../core/models';
 import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
 
@@ -11,21 +10,20 @@ import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
   imports: SHARED_IMPORTS,
   template: `
     <h1>Inventario</h1>
-    @if (canAdjust) {
-    <div class="card">
-      <h3>Ajuste manual de stock</h3>
+        <div class="card">
+      <h3>Ajuste manual de cantidad</h3>
       <p class="muted">Use cantidad positiva para sumar (conteo, hallazgo) y negativa para restar (merma, daño). Las entradas por compra se hacen en Compras.</p>
       <div class="row">
         <mat-form-field style="flex: 2 1 300px"><mat-label>Producto</mat-label>
           <mat-select [(ngModel)]="productId">
-            @for (p of products(); track p.id) { <mat-option [value]="p.id">{{ p.sku }} - {{ p.name }} (stock {{ p.stock }})</mat-option> }
+            @for (p of products(); track p.id) { <mat-option [value]="p.id">{{ p.sku }} - {{ p.name }} (cantidad {{ p.stock }})</mat-option> }
           </mat-select></mat-form-field>
         <mat-form-field><mat-label>Cantidad (+/-)</mat-label><input matInput type="number" [(ngModel)]="qty"></mat-form-field>
         <mat-form-field style="flex: 2 1 240px"><mat-label>Motivo</mat-label><input matInput [(ngModel)]="note"></mat-form-field>
         <button mat-flat-button color="primary" [disabled]="!productId || !qty" (click)="adjust()">Aplicar ajuste</button>
       </div>
     </div>
-    }
+    
 
     <div class="card">
       <h3>Movimientos recientes</h3>
@@ -52,8 +50,6 @@ export class InventoryComponent implements OnInit {
   private api = inject(ApiService);
   private snack = inject(MatSnackBar);
 
-  /** Solo UX: los ajustes de stock son de ADMIN. */
-  canAdjust = inject(AuthService).hasRole('ADMIN');
   products = signal<Product[]>([]);
   movements = signal<InventoryMovement[]>([]);
   productNames = computed(() => new Map(this.products().map(p => [p.id!, p.name])));

@@ -14,15 +14,12 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -37,7 +34,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
-@EnableMethodSecurity
 public class SecurityConfig {
 
     private static final String[] SWAGGER = {"/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**"};
@@ -50,14 +46,6 @@ public class SecurityConfig {
     @Bean
     JwtDecoder jwtDecoder(JwtService jwt) {
         return jwt.decoder();
-    }
-
-    @Bean
-    JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtAuthenticationConverter c = new JwtAuthenticationConverter();
-        c.setJwtGrantedAuthoritiesConverter(
-                jwt -> List.of(new SimpleGrantedAuthority("ROLE_" + jwt.getClaimAsString("role"))));
-        return c;
     }
 
     @Bean
@@ -74,8 +62,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, Environment env, JwtAuthenticationConverter converter,
-                                    ObjectMapper mapper) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, Environment env, ObjectMapper mapper) throws Exception {
         AuthenticationEntryPoint entryPoint = (req, res, e) ->
                 json(mapper, res, HttpStatus.UNAUTHORIZED, "No autenticado: inicie sesión para continuar");
         AccessDeniedHandler denied = (req, res, e) ->
@@ -105,7 +92,7 @@ public class SecurityConfig {
                 a.anyRequest().authenticated();
             })
             .oauth2ResourceServer(o -> o
-                .jwt(j -> j.jwtAuthenticationConverter(converter))
+                .jwt(Customizer.withDefaults())
                 .authenticationEntryPoint(entryPoint)
                 .accessDeniedHandler(denied))
             .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint).accessDeniedHandler(denied));

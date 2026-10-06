@@ -1,6 +1,5 @@
 package com.mastercard.system.accounting;
 
-import org.springframework.security.access.prepost.PreAuthorize;
 import com.mastercard.system.accounting.AccountingService.IncomeStatement;
 import com.mastercard.system.accounting.AccountingService.TrialBalanceRow;
 import com.mastercard.system.common.NotFoundException;
@@ -35,13 +34,11 @@ public class AccountingController {
                                  @NotNull @Positive BigDecimal amount) {}
 
     @GetMapping("/accounts")
-    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     public List<Account> accounts() {
         return accounts.findAllByOrderByCode();
     }
 
     @GetMapping("/journal")
-    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     @Transactional(readOnly = true)
     public List<EntryDto> journal(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -55,7 +52,6 @@ public class AccountingController {
     }
 
     @GetMapping("/reports/trial-balance")
-    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     public List<TrialBalanceRow> trialBalance(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -63,7 +59,6 @@ public class AccountingController {
     }
 
     @GetMapping("/reports/income-statement")
-    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     public IncomeStatement incomeStatement(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -71,7 +66,6 @@ public class AccountingController {
     }
 
     @GetMapping("/expenses")
-    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     public List<Expense> expenses(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return expenses.findByDateBetweenOrderByDateDesc(from, to);
@@ -79,7 +73,6 @@ public class AccountingController {
 
     /** Gasto pagado en efectivo: Dr cuenta de gasto / Cr Caja. */
     @PostMapping("/expenses")
-    @PreAuthorize("hasAnyRole('ADMIN','CONTADOR')")
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
     public Expense createExpense(@Valid @RequestBody ExpenseRequest r) {

@@ -2,7 +2,7 @@ export interface Category { id?: number; name: string; }
 
 export interface Product {
   id?: number; sku: string; name: string; brand?: string; category?: Category | null;
-  cost: number; price: number; ivaRate: number; stock: number; minStock: number; active: boolean;
+  cost: number; price: number; ivaRate: number; stock: number; active: boolean;
 }
 
 export interface Customer {
@@ -55,14 +55,8 @@ export interface TrialBalanceRow { code: string; name: string; type: string; deb
 export interface IncomeStatement { income: number; costOfSales: number; grossProfit: number; expenses: number; netProfit: number; }
 
 export interface DashboardSummary {
-  salesToday: number; invoicesToday: number; salesMonth: number; receivable: number; lowStock: Product[];
+  salesToday: number; invoicesToday: number; salesMonth: number; receivable: number;
 }
 
-export type Role = 'ADMIN' | 'VENDEDOR' | 'CONTADOR';
-export const ROLE_LABELS: Record<Role, string> = { ADMIN: 'Administrador', VENDEDOR: 'Vendedor', CONTADOR: 'Contador' };
-
-export interface AuthUser { id: number; username: string; role: Role; }
+export interface AuthUser { id: number; username: string; }
 export interface AuthResponse { accessToken: string; tokenType: string; expiresIn: number; user: AuthUser; }
-export interface AppUser { id: number; username: string; role: Role; active: boolean; locked: boolean; createdAt: string; }
-export interface UserCreate { username: string; password: string; role: Role; }
-export interface UserUpdate { role: Role; active: boolean; password?: string; }
