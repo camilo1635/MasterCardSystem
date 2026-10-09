@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import {
   Account, AuthResponse, AuthUser, CreditTransaction, Customer, CustomerCredit, DashboardSummary, Expense, IncomeStatement,
   InventoryMovement, Invoice, InvoiceRequest, JournalEntry, Product, Purchase, PurchaseRequest, Receivable,
-  Supplier, TrialBalanceRow,
+  Returnable, ReturnRequest, SalesReturn, Supplier, TrialBalanceRow,
 } from './models';
 import { environment } from '../../environments/environment';
 
@@ -75,6 +75,16 @@ export class ApiService {
   createInvoice(r: InvoiceRequest) { return this.http.post<Invoice>(`${API_URL}/invoices`, r); }
   cancelInvoice(id: number) { return this.http.post<Invoice>(`${API_URL}/invoices/${id}/cancel`, {}); }
   invoicePdf(id: number) { return this.http.get(`${API_URL}/invoices/${id}/pdf`, { responseType: 'blob' }); }
+
+  // Devoluciones
+  returns(from?: string, to?: string) {
+    let params = new HttpParams();
+    if (from) params = params.set('from', from);
+    if (to) params = params.set('to', to);
+    return this.http.get<SalesReturn[]>(`${API_URL}/returns`, { params });
+  }
+  returnable(invoiceId: number) { return this.http.get<Returnable[]>(`${API_URL}/returns/invoice/${invoiceId}/available`); }
+  createReturn(r: ReturnRequest) { return this.http.post<SalesReturn>(`${API_URL}/returns`, r); }
 
   // Contabilidad
   accounts() { return this.http.get<Account[]>(`${API_URL}/accounting/accounts`); }

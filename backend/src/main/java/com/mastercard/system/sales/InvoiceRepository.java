@@ -1,10 +1,12 @@
 package com.mastercard.system.sales;
 
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,6 +17,11 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     @Query("select distinct i from Invoice i left join fetch i.items where i.id = :id")
     Optional<Invoice> findWithItems(@Param("id") Long id);
+
+    /** Bloquea la fila: serializa devoluciones y anulaciones concurrentes sobre la misma factura. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select i from Invoice i where i.id = :id")
+    Optional<Invoice> findByIdForUpdate(@Param("id") Long id);
 
     @Query("select distinct i from Invoice i left join fetch i.items where i.date >= :from and i.date < :to order by i.id desc")
     List<Invoice> findBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);

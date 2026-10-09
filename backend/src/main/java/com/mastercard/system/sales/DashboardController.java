@@ -5,6 +5,7 @@ import com.mastercard.system.product.Product;
 import com.mastercard.system.product.ProductRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,7 @@ public class DashboardController {
                           BigDecimal receivable, List<Product> lowStock) {}
 
     private final InvoiceRepository invoices;
+    private final SalesReturnRepository returns;
     private final CreditTransactionRepository credit;
     private final ProductRepository products;
 
@@ -29,10 +31,14 @@ public class DashboardController {
     public Summary summary() {
         LocalDate today = LocalDate.now();
         LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDateTime dayStart = today.atStartOfDay();
+        LocalDateTime dayEnd = today.plusDays(1).atStartOfDay();
+        // Ventas netas: las devoluciones del período se restan del total facturado.
         return new Summary(
-                invoices.salesTotal(today.atStartOfDay(), today.plusDays(1).atStartOfDay()),
-                invoices.salesCount(today.atStartOfDay(), today.plusDays(1).atStartOfDay()),
-                invoices.salesTotal(monthStart.atStartOfDay(), today.plusDays(1).atStartOfDay()),
+                invoices.salesTotal(dayStart, dayEnd).subtract(returns.returnsTotal(dayStart, dayEnd)),
+                invoices.salesCount(dayStart, dayEnd),
+                invoices.salesTotal(monthStart.atStartOfDay(), dayEnd)
+                        .subtract(returns.returnsTotal(monthStart.atStartOfDay(), dayEnd)),
                 credit.totalReceivable(),
                 products.findLowStock());
     }

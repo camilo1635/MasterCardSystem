@@ -19,6 +19,10 @@ import com.mastercard.system.product.ProductRepository;
 import com.mastercard.system.sales.Invoice;
 import com.mastercard.system.sales.InvoiceService;
 import com.mastercard.system.sales.InvoiceService.InvoiceRequest;
+import com.mastercard.system.sales.SalesReturn;
+import com.mastercard.system.sales.SalesReturnService;
+import com.mastercard.system.sales.SalesReturnService.ReturnItemRequest;
+import com.mastercard.system.sales.SalesReturnService.ReturnRequest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -45,6 +49,7 @@ class SalesFlowIT {
     @Autowired SupplierRepository suppliers;
     @Autowired PurchaseService purchases;
     @Autowired InvoiceService invoices;
+    @Autowired SalesReturnService returns;
     @Autowired CreditService credit;
     @Autowired InventoryService inventory;
     @Autowired AccountingService accounting;
@@ -97,6 +102,46 @@ class SalesFlowIT {
         assertThat(credit.balanceOf(c.getId())).isEqualByComparingTo("-100000");
 
         // La contabilidad siempre cuadra: débitos == créditos.
+        var tb = accounting.trialBalance(LocalDate.now().minusDays(1), LocalDate.now().plusDays(1));
+        BigDecimal debits = tb.stream().map(r -> r.debit()).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal credits = tb.stream().map(r -> r.credit()).reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(debits).isEqualByComparingTo(credits);
+    }
+
+    @Test
+    void partialReturnsRestockAndSettleCredit() {
+        Product p = product();
+        stock(p, 10, "60000");
+        Customer c = customer("500000");
+        Invoice inv = invoices.create(new InvoiceRequest(c.getId(), "CREDITO", null,
+                List.of(new InvoiceService.ItemRequest(p.getId(), 2, null))));
+        Long itemId = invoices.get(inv.getId()).getItems().get(0).getId();
+        credit.pay(c.getId(), new BigDecimal("100000"), "EFECTIVO", null); // saldo 138.000
+
+        // 1 unidad (119.000) se descuenta completa del saldo y vuelve al inventario.
+        SalesReturn first = returns.create(new ReturnRequest(inv.getId(), "No le sirvió",
+                List.of(new ReturnItemRequest(itemId, 1))));
+        assertThat(first.getTotal()).isEqualByComparingTo("119000");
+        assertThat(first.getCreditApplied()).isEqualByComparingTo("119000");
+        assertThat(first.getCashRefund()).isEqualByComparingTo("0");
+        assertThat(products.findById(p.getId()).orElseThrow().getStock()).isEqualTo(9);
+        assertThat(credit.balanceOf(c.getId())).isEqualByComparingTo("19000");
+
+        // La segunda unidad supera el saldo: 19.000 al crédito y 100.000 en efectivo.
+        SalesReturn second = returns.create(new ReturnRequest(inv.getId(), null,
+                List.of(new ReturnItemRequest(itemId, 1))));
+        assertThat(second.getCreditApplied()).isEqualByComparingTo("19000");
+        assertThat(second.getCashRefund()).isEqualByComparingTo("100000");
+        assertThat(products.findById(p.getId()).orElseThrow().getStock()).isEqualTo(10);
+        assertThat(credit.balanceOf(c.getId())).isEqualByComparingTo("0");
+
+        // Ya no queda nada por devolver y la factura no puede anularse.
+        assertThatThrownBy(() -> returns.create(new ReturnRequest(inv.getId(), null,
+                List.of(new ReturnItemRequest(itemId, 1)))))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("máximo 0");
+        assertThatThrownBy(() -> invoices.cancel(inv.getId()))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("devoluciones");
+
         var tb = accounting.trialBalance(LocalDate.now().minusDays(1), LocalDate.now().plusDays(1));
         BigDecimal debits = tb.stream().map(r -> r.debit()).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal credits = tb.stream().map(r -> r.credit()).reduce(BigDecimal.ZERO, BigDecimal::add);

@@ -26,6 +26,10 @@ public class Invoice {
     private BigDecimal total;
     private String notes;
 
+    /** Derivado (no persistido): NINGUNA, PARCIAL o TOTAL según las unidades devueltas. */
+    @Transient
+    private String returnStatus = "NINGUNA";
+
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<InvoiceItem> items = new ArrayList<>();
 }

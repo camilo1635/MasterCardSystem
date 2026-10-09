@@ -10,11 +10,29 @@ export interface Customer {
 
 export interface Supplier { id?: number; nit?: string; name: string; phone?: string; email?: string; address?: string; }
 
-export interface InvoiceItem { productId: number; description: string; quantity: number; unitPrice: number; ivaRate: number; }
+export interface SalesReturnItem {
+  invoiceItemId: number; productId: number; description: string; quantity: number; unitPrice: number; ivaRate: number;
+}
+
+export interface SalesReturn {
+  id: number; number: number; invoiceId: number; customerId?: number; date: string; subtotal: number; iva: number; total: number;
+  creditApplied: number; cashRefund: number; reason?: string; items: SalesReturnItem[];
+}
+
+export interface Returnable {
+  invoiceItemId: number; productId: number; description: string; sold: number; returned: number;
+  available: number; unitPrice: number; ivaRate: number;
+}
+
+export interface ReturnRequest {
+  invoiceId: number; reason?: string; items: { invoiceItemId: number; quantity: number }[];
+}
+
+export interface InvoiceItem { id?: number; productId: number; description: string; quantity: number; unitPrice: number; ivaRate: number; }
 
 export interface Invoice {
   id: number; number: number; customerId?: number; date: string; paymentType: 'CONTADO' | 'CREDITO';
-  status: 'EMITIDA' | 'ANULADA'; subtotal: number; iva: number; total: number; notes?: string; items: InvoiceItem[];
+  status: 'EMITIDA' | 'ANULADA'; returnStatus?: 'NINGUNA' | 'PARCIAL' | 'TOTAL'; subtotal: number; iva: number; total: number; notes?: string; items: InvoiceItem[];
 }
 
 export interface InvoiceRequest {

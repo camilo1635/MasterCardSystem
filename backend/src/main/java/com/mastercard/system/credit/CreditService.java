@@ -48,6 +48,21 @@ public class CreditService {
         save(customerId, Type.REVERSO, amount.negate(), newBalance, invoiceId, null, note);
     }
 
+    /**
+     * Devolución de una factura a crédito: descuenta del saldo hasta donde alcance (nunca lo deja negativo).
+     * Devuelve el monto aplicado al saldo; el resto debe reembolsarse en efectivo.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public BigDecimal applyReturn(Long customerId, BigDecimal amount, Long invoiceId, String note) {
+        customers.findByIdForUpdate(customerId).orElseThrow(() -> new NotFoundException("Cliente", customerId));
+        BigDecimal balance = txs.balanceOf(customerId);
+        BigDecimal applied = amount.min(balance.max(BigDecimal.ZERO));
+        if (applied.signum() > 0) {
+            save(customerId, Type.REVERSO, applied.negate(), balance.subtract(applied), invoiceId, null, note);
+        }
+        return applied;
+    }
+
     /** Abono del cliente: Dr Caja/Bancos, Cr Clientes. No puede superar el saldo adeudado. */
     @Transactional
     public CreditTransaction pay(Long customerId, BigDecimal amount, String method, String note) {

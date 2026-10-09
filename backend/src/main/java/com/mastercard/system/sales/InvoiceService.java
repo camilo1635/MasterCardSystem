@@ -37,6 +37,7 @@ public class InvoiceService {
                                  @NotEmpty @Valid List<ItemRequest> items) {}
 
     private final InvoiceRepository invoices;
+    private final SalesReturnRepository returns;
     private final ProductRepository products;
     private final CustomerRepository customers;
     private final InventoryService inventory;
@@ -124,9 +125,13 @@ public class InvoiceService {
     /** Anula la factura: devuelve stock al costo vendido, revierte el cargo a crédito y el asiento. */
     @Transactional
     public Invoice cancel(Long id) {
+        invoices.findByIdForUpdate(id).orElseThrow(() -> new NotFoundException("Factura", id));
         Invoice inv = invoices.findWithItems(id).orElseThrow(() -> new NotFoundException("Factura", id));
         if (inv.getStatus().equals("ANULADA")) {
             throw new BusinessException("La factura ya está anulada");
+        }
+        if (returns.existsByInvoiceId(id)) {
+            throw new BusinessException("La factura tiene devoluciones registradas y no se puede anular");
         }
         inv.setStatus("ANULADA");
         // Bloqueo en orden ascendente de producto (evita deadlocks con ventas/compras concurrentes).
