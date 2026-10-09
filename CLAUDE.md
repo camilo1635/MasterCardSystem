@@ -24,7 +24,9 @@ cd frontend && npx ng build                    # verifica que compile
 - Factura, anulación, compra y abono son **una sola transacción** que toca inventario, crédito y contabilidad. Los servicios `InventoryService.move`, `CreditService.charge/reverseCharge` y `AccountingService.post/reverse` usan `Propagation.MANDATORY`: deben llamarse desde una transacción ya abierta.
 - Todo asiento debe cuadrar (debe = haber); `AccountingService.post` lo valida.
 - Precios se guardan **sin IVA**; el IVA se calcula por producto. Costo = promedio ponderado recalculado en cada compra.
-- Crédito: `credit_transaction.amount` lleva signo (CARGO +, ABONO/REVERSO −); el saldo del cliente es la suma. El cupo se valida al cargar.
+- Crédito: `credit_transaction.amount` lleva signo (CARGO +, ABONO/REVERSO −); el saldo del cliente es la suma. **No hay cupo de crédito** (la columna `customer.credit_limit` quedó sin uso, con default 0, y la entidad ya no la mapea).
+- Abonos por factura: un ABONO lleva `invoice_id` de la factura a la que se aplicó. El saldo de una factura a crédito = total − abonos de esa factura − deuda descontada por devoluciones (`InvoiceService.enrich`). El abono desde la ficha del cliente (`InvoiceService.payCustomer`) se reparte entre sus facturas pendientes, de la más antigua a la más reciente.
+- Cartera por cobrar = clientes con facturas a crédito con saldo pendiente (`InvoiceService.receivables`); el historial de crédito de un cliente lista solo sus abonos.
 - Códigos de cuenta contable fijos en `AccountingService` (1105 Caja, 1305 Clientes, 1435 Inventario, 2408 IVA, 4135 Ingresos, 6135 Costo de ventas…); salen del seed de `V1`.
 
 ## Convenciones
@@ -38,4 +40,4 @@ cd frontend && npx ng build                    # verifica que compile
 - Todo endpoint requiere token salvo `/api/auth/login|refresh|logout`. Error 401 en JSON `{"message": ...}`.
 
 ## Pendiente
-Facturación electrónica DIAN, abonos aplicados a factura específica, antigüedad de cartera.
+Facturación electrónica DIAN, antigüedad de cartera, anulación/corrección de abonos ya registrados.

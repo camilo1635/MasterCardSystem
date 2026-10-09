@@ -62,11 +62,10 @@ class SalesFlowIT {
         return products.save(p);
     }
 
-    private Customer customer(String limit) {
+    private Customer customer() {
         Customer c = new Customer();
         c.setDocument("D" + System.nanoTime());
         c.setName("Cliente prueba");
-        c.setCreditLimit(new BigDecimal(limit));
         return customers.save(c);
     }
 
@@ -84,7 +83,7 @@ class SalesFlowIT {
         stock(p, 10, "60000");
         assertThat(products.findById(p.getId()).orElseThrow().getStock()).isEqualTo(10);
 
-        Customer c = customer("500000");
+        Customer c = customer();
         Invoice inv = invoices.create(new InvoiceRequest(c.getId(), "CREDITO", null,
                 List.of(new InvoiceService.ItemRequest(p.getId(), 2, null))));
         // 2 x 100.000 + IVA 19% = 238.000
@@ -112,7 +111,7 @@ class SalesFlowIT {
     void partialReturnsRestockAndSettleCredit() {
         Product p = product();
         stock(p, 10, "60000");
-        Customer c = customer("500000");
+        Customer c = customer();
         Invoice inv = invoices.create(new InvoiceRequest(c.getId(), "CREDITO", null,
                 List.of(new InvoiceService.ItemRequest(p.getId(), 2, null))));
         Long itemId = invoices.get(inv.getId()).getItems().get(0).getId();
@@ -152,7 +151,7 @@ class SalesFlowIT {
     void invoicePaymentsAccumulateUntilSettled() {
         Product p = product();
         stock(p, 10, "60000");
-        Customer c = customer("500000");
+        Customer c = customer();
         Invoice inv = invoices.create(new InvoiceRequest(c.getId(), "CREDITO", null,
                 List.of(new InvoiceService.ItemRequest(p.getId(), 2, null)))); // 238.000
 
@@ -179,14 +178,71 @@ class SalesFlowIT {
     }
 
     @Test
-    void rejectsInsufficientStockAndExceededCredit() {
+    void customerPaymentSettlesOldestInvoicesFirstAndDrivesReceivables() {
+        Product p = product();
+        stock(p, 10, "60000");
+        Customer c = customer();
+        Invoice older = invoices.create(new InvoiceRequest(c.getId(), "CREDITO", null,
+                List.of(new InvoiceService.ItemRequest(p.getId(), 2, null)))); // 238.000
+        Invoice newer = invoices.create(new InvoiceRequest(c.getId(), "CREDITO", null,
+                List.of(new InvoiceService.ItemRequest(p.getId(), 1, null)))); // 119.000
+
+        var result = invoices.payCustomer(c.getId(), new BigDecimal("300000"), "EFECTIVO", null);
+        assertThat(result.invoices()).isEqualTo(2);
+        assertThat(result.balance()).isEqualByComparingTo("57000");
+
+        // La factura más antigua queda saldada; la nueva conserva 57.000.
+        assertThat(invoices.enrich(List.of(invoices.get(older.getId()))).get(0).getPending()).isEqualByComparingTo("0");
+        assertThat(invoices.enrich(List.of(invoices.get(newer.getId()))).get(0).getPending()).isEqualByComparingTo("57000");
+
+        // La cartera la forman los clientes con facturas pendientes, y el historial lista solo abonos.
+        var row = invoices.receivables().stream().filter(r -> r.customerId().equals(c.getId())).findFirst().orElseThrow();
+        assertThat(row.balance()).isEqualByComparingTo("57000");
+        assertThat(row.invoices()).isEqualTo(1);
+        assertThat(credit.history(c.getId())).hasSize(2)
+                .allMatch(t -> t.getType() == com.mastercard.system.credit.CreditTransaction.Type.ABONO);
+
+        invoices.payCustomer(c.getId(), new BigDecimal("57000"), "EFECTIVO", null);
+        assertThat(invoices.receivables().stream().anyMatch(r -> r.customerId().equals(c.getId()))).isFalse();
+    }
+
+    @Test
+    void legacyUnlinkedPaymentsAreAppliedToOldestInvoices() {
+        Product p = product();
+        stock(p, 10, "60000");
+        Customer c = customer();
+        Invoice older = invoices.create(new InvoiceRequest(c.getId(), "CREDITO", null,
+                List.of(new InvoiceService.ItemRequest(p.getId(), 2, null)))); // 238.000
+        Invoice newer = invoices.create(new InvoiceRequest(c.getId(), "CREDITO", null,
+                List.of(new InvoiceService.ItemRequest(p.getId(), 1, null)))); // 119.000
+        credit.pay(c.getId(), new BigDecimal("300000"), "EFECTIVO", null); // abono a cuenta, sin factura
+
+        var a = invoices.enrich(List.of(invoices.get(older.getId()))).get(0);
+        var b = invoices.enrich(List.of(invoices.get(newer.getId()))).get(0);
+        assertThat(a.getPending()).isEqualByComparingTo("0");
+        assertThat(a.getPaid()).isEqualByComparingTo("238000");
+        assertThat(b.getPending()).isEqualByComparingTo("57000");
+        // El saldo del cliente y la cartera coinciden.
+        assertThat(credit.balanceOf(c.getId())).isEqualByComparingTo("57000");
+        assertThat(invoices.receivables().stream().filter(r -> r.customerId().equals(c.getId())).findFirst()
+                .orElseThrow().balance()).isEqualByComparingTo("57000");
+    }
+
+    @Test
+    void creditSalesHaveNoLimit() {
+        Product p = product();
+        stock(p, 5, "60000");
+        Customer c = customer();
+        Invoice inv = invoices.create(new InvoiceRequest(c.getId(), "CREDITO", null,
+                List.of(new InvoiceService.ItemRequest(p.getId(), 5, null))));
+        assertThat(credit.balanceOf(c.getId())).isEqualByComparingTo(inv.getTotal());
+    }
+
+    @Test
+    void rejectsInsufficientStock() {
         Product p = product();
         stock(p, 1, "60000");
-        Customer small = customer("50000");
 
-        assertThatThrownBy(() -> invoices.create(new InvoiceRequest(small.getId(), "CREDITO", null,
-                List.of(new InvoiceService.ItemRequest(p.getId(), 1, null)))))
-                .isInstanceOf(BusinessException.class).hasMessageContaining("Cupo");
         assertThatThrownBy(() -> invoices.create(new InvoiceRequest(null, "CONTADO", null,
                 List.of(new InvoiceService.ItemRequest(p.getId(), 5, null)))))
                 .isInstanceOf(BusinessException.class).hasMessageContaining("Cantidad insuficiente");

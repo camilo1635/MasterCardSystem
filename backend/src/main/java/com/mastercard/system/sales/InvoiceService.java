@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -178,6 +179,64 @@ public class InvoiceService {
     }
 
     /**
+     * Abono del cliente desde su ficha: se aplica a sus facturas a crédito pendientes, de la más antigua a la
+     * más reciente, para que el saldo por factura y el del cliente siempre coincidan.
+     */
+    @Transactional
+    public PaymentResult payCustomer(Long customerId, BigDecimal amount, String method, String note) {
+        if (!customers.existsById(customerId)) {
+            throw new NotFoundException("Cliente", customerId);
+        }
+        BigDecimal value = Money.round(amount);
+        if (value.signum() <= 0) {
+            throw new BusinessException("El abono debe ser mayor a cero");
+        }
+        BigDecimal balance = credit.balanceOf(customerId);
+        if (value.compareTo(balance) > 0) {
+            throw new BusinessException("El abono (" + value + ") supera el saldo adeudado (" + balance + ")");
+        }
+        String m = method == null ? "EFECTIVO" : method;
+        BigDecimal left = value;
+        int touched = 0;
+        for (Invoice inv : enrich(invoices.findOpenCreditByCustomer(customerId))) {
+            if (left.signum() == 0) {
+                break;
+            }
+            if (inv.getPending().signum() <= 0) {
+                continue;
+            }
+            BigDecimal part = left.min(inv.getPending());
+            payInvoice(inv.getId(), part, m, note);
+            left = left.subtract(part);
+            touched++;
+        }
+        if (left.signum() > 0) { // saldo heredado sin factura asociada
+            credit.pay(customerId, left, m, note, null);
+        }
+        return new PaymentResult(credit.balanceOf(customerId), touched);
+    }
+
+    public record PaymentResult(BigDecimal balance, int invoices) {}
+
+    public record Receivable(Long customerId, String name, String document, String phone, BigDecimal balance,
+                             int invoices) {}
+
+    /** Cartera por cobrar: clientes con facturas a crédito pendientes de pago, con su saldo y número de facturas. */
+    @Transactional(readOnly = true)
+    public List<Receivable> receivables() {
+        Map<Long, List<Invoice>> byCustomer = enrich(invoices.findOpenCredit()).stream()
+                .filter(i -> i.getCustomerId() != null && i.getPending().signum() > 0)
+                .collect(Collectors.groupingBy(Invoice::getCustomerId));
+        Map<Long, com.mastercard.system.customer.Customer> people = customers.findAllById(byCustomer.keySet()).stream()
+                .collect(Collectors.toMap(com.mastercard.system.customer.Customer::getId, Function.identity()));
+        return byCustomer.entrySet().stream().map(e -> {
+            var c = people.get(e.getKey());
+            BigDecimal sum = e.getValue().stream().map(Invoice::getPending).reduce(BigDecimal.ZERO, BigDecimal::add);
+            return new Receivable(c.getId(), c.getName(), c.getDocument(), c.getPhone(), sum, e.getValue().size());
+        }).sorted(Comparator.comparing(Receivable::balance).reversed()).toList();
+    }
+
+    /**
      * Completa los campos derivados de cada factura con pocas consultas: estado de devolución
      * (NINGUNA/PARCIAL/TOTAL) y, en facturas a crédito, lo abonado y el saldo pendiente
      * (total - abonos aplicados a la factura - deuda descontada por devoluciones).
@@ -187,6 +246,50 @@ public class InvoiceService {
         if (list.isEmpty()) {
             return list;
         }
+        computeLinked(list);
+        applyUnlinkedPayments(list);
+        return list;
+    }
+
+    /**
+     * Abonos antiguos sin factura asociada (hechos antes de que los abonos se aplicaran por factura): se imputan
+     * a las facturas pendientes del cliente, de la más antigua a la más reciente, para que el saldo por factura
+     * coincida con el saldo del cliente.
+     */
+    private void applyUnlinkedPayments(List<Invoice> list) {
+        Set<Long> customerIds = list.stream()
+                .filter(i -> i.getCustomerId() != null && i.getPaymentType().equals("CREDITO") && i.getPending().signum() > 0)
+                .map(Invoice::getCustomerId).collect(Collectors.toSet());
+        if (customerIds.isEmpty()) {
+            return;
+        }
+        Map<Long, BigDecimal> take = new HashMap<>();
+        for (Object[] row : creditTxs.unlinkedPaymentsByCustomer(customerIds)) {
+            BigDecimal left = (BigDecimal) row[1];
+            List<Invoice> open = invoices.findOpenCreditByCustomer((Long) row[0]);
+            computeLinked(open);
+            for (Invoice inv : open) {
+                if (left.signum() <= 0) {
+                    break;
+                }
+                BigDecimal part = left.min(inv.getPending());
+                if (part.signum() > 0) {
+                    take.put(inv.getId(), part);
+                    left = left.subtract(part);
+                }
+            }
+        }
+        for (Invoice inv : list) {
+            BigDecimal part = take.get(inv.getId());
+            if (part != null) {
+                inv.setPaid(inv.getPaid().add(part));
+                inv.setPending(inv.getPending().subtract(part));
+            }
+        }
+    }
+
+    /** Estado de devolución y, en crédito, abonado/saldo considerando solo abonos aplicados a cada factura. */
+    private void computeLinked(List<Invoice> list) {
         List<Long> ids = list.stream().map(Invoice::getId).toList();
         Map<Long, Long> returned = new HashMap<>();
         for (Object[] row : returns.returnedByInvoice(ids)) {
@@ -212,7 +315,6 @@ public class InvoiceService {
                                 .max(BigDecimal.ZERO));
             }
         }
-        return list;
     }
 
     @Transactional(readOnly = true)

@@ -3,7 +3,7 @@ import { ApiService } from '../core/api.service';
 import { CreditTransaction, Customer, CustomerCredit, Receivable } from '../core/models';
 import { MatSnackBar, Pager, SHARED_IMPORTS } from '../core/shared';
 
-const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', address: '', creditLimit: 0, active: true });
+const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', address: '', active: true });
 
 @Component({
   selector: 'app-customers',
@@ -21,7 +21,6 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
             <mat-form-field style="flex: 2 1 260px"><mat-label>Nombre</mat-label><input matInput [(ngModel)]="form.name"></mat-form-field>
             <mat-form-field><mat-label>Teléfono</mat-label><input matInput [(ngModel)]="form.phone"></mat-form-field>
             <mat-form-field><mat-label>Email</mat-label><input matInput [(ngModel)]="form.email"></mat-form-field>
-            <mat-form-field><mat-label>Cupo de crédito</mat-label><input matInput type="number" min="0" [(ngModel)]="form.creditLimit"></mat-form-field>
             <button mat-flat-button color="primary" (click)="save()">Guardar</button>
             @if (form.id) { <button mat-button (click)="form = blank()">Cancelar</button> }
           </div>
@@ -35,7 +34,6 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
             <ng-container matColumnDef="document"><th mat-header-cell *matHeaderCellDef>Documento</th><td mat-cell *matCellDef="let c">{{ c.document }}</td></ng-container>
             <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Nombre</th><td mat-cell *matCellDef="let c">{{ c.name }}</td></ng-container>
             <ng-container matColumnDef="phone"><th mat-header-cell *matHeaderCellDef>Teléfono</th><td mat-cell *matCellDef="let c">{{ c.phone }}</td></ng-container>
-            <ng-container matColumnDef="limit"><th mat-header-cell *matHeaderCellDef class="num">Cupo</th><td mat-cell *matCellDef="let c" class="num">{{ c.creditLimit | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
             <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let c">
                 <button mat-button (click)="openCredit(c)">Historial de crédito</button>
@@ -51,9 +49,7 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
           <div class="card">
             <h3>Crédito de {{ s.customer.name }}</h3>
             <div class="kpis">
-              <div class="kpi"><div class="label">Cupo</div><div class="value">{{ s.customer.creditLimit | currency:'COP':'symbol-narrow':'1.0-0' }}</div></div>
               <div class="kpi"><div class="label">Saldo adeudado</div><div class="value" [class.danger]="s.balance > 0">{{ s.balance | currency:'COP':'symbol-narrow':'1.0-0' }}</div></div>
-              <div class="kpi"><div class="label">Cupo disponible</div><div class="value">{{ s.available | currency:'COP':'symbol-narrow':'1.0-0' }}</div></div>
             </div>
                         <div class="row">
               <mat-form-field><mat-label>Valor del abono</mat-label><input matInput type="number" min="1" [(ngModel)]="payAmount"></mat-form-field>
@@ -63,13 +59,15 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
               <button mat-flat-button color="primary" [disabled]="!payAmount || s.balance <= 0" (click)="pay(s)">Registrar abono</button>
             </div>
             
+            <h4>Historial de abonos</h4>
+            @if (!history().length) { <p class="muted">Este cliente aún no ha hecho abonos.</p> }
             <table mat-table [dataSource]="historyPager.slice(history())">
               <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let t">{{ t.createdAt | date:'dd/MM/yy HH:mm' }}</td></ng-container>
-              <ng-container matColumnDef="type"><th mat-header-cell *matHeaderCellDef>Tipo</th><td mat-cell *matCellDef="let t">{{ t.type }}</td></ng-container>
-              <ng-container matColumnDef="note"><th mat-header-cell *matHeaderCellDef>Detalle</th><td mat-cell *matCellDef="let t">{{ t.note }} {{ t.method }}</td></ng-container>
-              <ng-container matColumnDef="amount"><th mat-header-cell *matHeaderCellDef class="num">Valor</th>
-                <td mat-cell *matCellDef="let t" class="num" [class.ok]="t.amount < 0" [class.danger]="t.amount > 0">{{ t.amount | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
-              <ng-container matColumnDef="balance"><th mat-header-cell *matHeaderCellDef class="num">Saldo</th><td mat-cell *matCellDef="let t" class="num">{{ t.balance | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
+              <ng-container matColumnDef="invoice"><th mat-header-cell *matHeaderCellDef>Factura</th><td mat-cell *matCellDef="let t">{{ invoiceNo(t.invoiceId) }}</td></ng-container>
+              <ng-container matColumnDef="method"><th mat-header-cell *matHeaderCellDef>Método</th><td mat-cell *matCellDef="let t">{{ t.method }}</td></ng-container>
+              <ng-container matColumnDef="amount"><th mat-header-cell *matHeaderCellDef class="num">Valor abonado</th>
+                <td mat-cell *matCellDef="let t" class="num ok">{{ -t.amount | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
+              <ng-container matColumnDef="balance"><th mat-header-cell *matHeaderCellDef class="num">Saldo del cliente</th><td mat-cell *matCellDef="let t" class="num">{{ t.balance | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
               <tr mat-header-row *matHeaderRowDef="histCols"></tr>
               <tr mat-row *matRowDef="let r; columns: histCols"></tr>
             </table>
@@ -85,7 +83,8 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
             <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Cliente</th><td mat-cell *matCellDef="let r">{{ r.name }}</td></ng-container>
             <ng-container matColumnDef="document"><th mat-header-cell *matHeaderCellDef>Documento</th><td mat-cell *matCellDef="let r">{{ r.document }}</td></ng-container>
             <ng-container matColumnDef="phone"><th mat-header-cell *matHeaderCellDef>Teléfono</th><td mat-cell *matCellDef="let r">{{ r.phone }}</td></ng-container>
-            <ng-container matColumnDef="balance"><th mat-header-cell *matHeaderCellDef class="num">Saldo</th><td mat-cell *matCellDef="let r" class="num danger">{{ r.balance | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
+            <ng-container matColumnDef="invoices"><th mat-header-cell *matHeaderCellDef class="num">Facturas pendientes</th><td mat-cell *matCellDef="let r" class="num">{{ r.invoices }}</td></ng-container>
+            <ng-container matColumnDef="balance"><th mat-header-cell *matHeaderCellDef class="num">Saldo por pagar</th><td mat-cell *matCellDef="let r" class="num danger">{{ r.balance | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
             <tr mat-header-row *matHeaderRowDef="recCols"></tr>
             <tr mat-row *matRowDef="let r; columns: recCols"></tr>
           </table>
@@ -113,9 +112,10 @@ export class CustomersComponent implements OnInit {
   customerPager = new Pager();
   historyPager = new Pager();
   receivablePager = new Pager();
-  cols = ['document', 'name', 'phone', 'limit', 'actions'];
-  histCols = ['date', 'type', 'note', 'amount', 'balance'];
-  recCols = ['name', 'document', 'phone', 'balance'];
+  cols = ['document', 'name', 'phone', 'actions'];
+  histCols = ['date', 'invoice', 'method', 'amount', 'balance'];
+  recCols = ['name', 'document', 'phone', 'invoices', 'balance'];
+  private invoiceNumbers = signal<Map<number, number>>(new Map());
 
   ngOnInit() { this.load(); }
 
@@ -132,7 +132,11 @@ export class CustomersComponent implements OnInit {
     if (this.selected()?.customer.id !== c.id) this.historyPager.reset();
     this.api.customerCredit(c.id!).subscribe(s => this.selected.set(s));
     this.api.creditHistory(c.id!).subscribe(h => this.history.set(h));
+    this.api.customerInvoices(c.id!).subscribe(l => this.invoiceNumbers.set(new Map(l.map(i => [i.id, i.number]))));
   }
+
+  /** Número de la factura a la que se aplicó el abono; sin factura, queda "a cuenta". */
+  invoiceNo(id?: number) { return id ? this.invoiceNumbers().get(id) ?? id : 'A cuenta'; }
 
   pay(s: CustomerCredit) {
     this.api.pay(s.customer.id!, this.payAmount, this.payMethod, this.payNote).subscribe(() => {

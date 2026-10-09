@@ -3,15 +3,12 @@ package com.mastercard.system.customer;
 import com.mastercard.system.common.NotFoundException;
 import com.mastercard.system.credit.CreditService;
 import com.mastercard.system.credit.CreditTransaction;
-import com.mastercard.system.credit.CreditTransactionRepository;
+import com.mastercard.system.sales.InvoiceService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -26,13 +23,11 @@ public class CustomerController {
 
     private final CustomerRepository customers;
     private final CreditService credit;
-    private final CreditTransactionRepository creditTxs;
+    private final InvoiceService invoices;
 
     public record PaymentRequest(@NotNull @Positive BigDecimal amount, String method, String note) {}
 
-    public record CustomerCredit(Customer customer, BigDecimal balance, BigDecimal available) {}
-
-    public record Receivable(Long customerId, String name, String document, String phone, BigDecimal balance) {}
+    public record CustomerCredit(Customer customer, BigDecimal balance) {}
 
     @GetMapping
     public List<Customer> list(@RequestParam(required = false) String q) {
@@ -58,38 +53,31 @@ public class CustomerController {
         return customers.save(c);
     }
 
-    /** Saldo y cupo disponible del cliente. */
+    /** Cliente y saldo adeudado. */
     @GetMapping("/{id}/credit")
     public CustomerCredit creditSummary(@PathVariable Long id) {
-        Customer c = get(id);
-        BigDecimal balance = credit.balanceOf(id);
-        return new CustomerCredit(c, balance, c.getCreditLimit().subtract(balance));
+        return new CustomerCredit(get(id), credit.balanceOf(id));
     }
 
-    /** Historial completo (cargos, abonos, reversos), más reciente primero. */
+    /** Historial de crédito: los abonos del cliente, el más reciente primero. */
     @GetMapping("/{id}/credit-history")
     public List<CreditTransaction> history(@PathVariable Long id) {
         get(id);
         return credit.history(id);
     }
 
+    /** Abono del cliente: se aplica a sus facturas a crédito pendientes, de la más antigua a la más reciente. */
     @PostMapping("/{id}/payments")
     @ResponseStatus(HttpStatus.CREATED)
-    public CreditTransaction pay(@PathVariable Long id, @Valid @RequestBody PaymentRequest r, Authentication auth) {
-        CreditTransaction t = credit.pay(id, r.amount(), r.method() == null ? "EFECTIVO" : r.method(), r.note());
+    public InvoiceService.PaymentResult pay(@PathVariable Long id, @Valid @RequestBody PaymentRequest r, Authentication auth) {
+        InvoiceService.PaymentResult result = invoices.payCustomer(id, r.amount(), r.method(), r.note());
         log.info("Abono de {} al cliente {} registrado por {}", r.amount(), id, auth.getName());
-        return t;
+        return result;
     }
 
-    /** Cartera: clientes con saldo pendiente. */
+    /** Cartera: clientes con facturas a crédito pendientes de pago. */
     @GetMapping("/receivables")
-    public List<Receivable> receivables() {
-        List<Object[]> rows = creditTxs.balancesByCustomer();
-        Map<Long, Customer> byId = customers.findAllById(rows.stream().map(r -> (Long) r[0]).toList()).stream()
-                .collect(Collectors.toMap(Customer::getId, Function.identity()));
-        return rows.stream().map(row -> {
-            Customer c = byId.get((Long) row[0]);
-            return new Receivable(c.getId(), c.getName(), c.getDocument(), c.getPhone(), (BigDecimal) row[1]);
-        }).toList();
+    public List<InvoiceService.Receivable> receivables() {
+        return invoices.receivables();
     }
 }

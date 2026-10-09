@@ -26,6 +26,14 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Query("select distinct i from Invoice i left join fetch i.items where i.date >= :from and i.date < :to order by i.id desc")
     List<Invoice> findBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
+    /** Facturas a crédito vigentes (candidatas a tener saldo), con ítems para poder derivar estados. */
+    @Query("select distinct i from Invoice i left join fetch i.items where i.paymentType = 'CREDITO' and i.status = 'EMITIDA' order by i.id")
+    List<Invoice> findOpenCredit();
+
+    @Query("select distinct i from Invoice i left join fetch i.items where i.customerId = :customerId "
+            + "and i.paymentType = 'CREDITO' and i.status = 'EMITIDA' order by i.id")
+    List<Invoice> findOpenCreditByCustomer(@Param("customerId") Long customerId);
+
     @Query("select distinct i from Invoice i left join fetch i.items where i.customerId = :customerId order by i.id desc")
     List<Invoice> findByCustomer(@Param("customerId") Long customerId);
 

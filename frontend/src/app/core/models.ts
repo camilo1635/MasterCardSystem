@@ -5,7 +5,7 @@ export interface Product {
 
 export interface Customer {
   id?: number; document: string; name: string; phone?: string; email?: string; address?: string;
-  creditLimit: number; active: boolean;
+  active: boolean;
 }
 
 export interface Supplier { id?: number; nit?: string; name: string; phone?: string; email?: string; address?: string; }
@@ -45,8 +45,11 @@ export interface CreditTransaction {
   invoiceId?: number; method?: string; note?: string; createdAt: string;
 }
 
-export interface CustomerCredit { customer: Customer; balance: number; available: number; }
-export interface Receivable { customerId: number; name: string; document: string; phone?: string; balance: number; }
+export interface CustomerCredit { customer: Customer; balance: number; }
+export interface Receivable {
+  customerId: number; name: string; document: string; phone?: string; balance: number; invoices: number;
+}
+export interface PaymentResult { balance: number; invoices: number; }
 
 export interface InventoryMovement {
   id: number; productId: number; type: string; quantity: number; unitCost: number;

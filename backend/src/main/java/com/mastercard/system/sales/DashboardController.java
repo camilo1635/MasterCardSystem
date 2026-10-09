@@ -1,6 +1,5 @@
 package com.mastercard.system.sales;
 
-import com.mastercard.system.credit.CreditTransactionRepository;
 import com.mastercard.system.product.Product;
 import com.mastercard.system.product.ProductRepository;
 import java.math.BigDecimal;
@@ -23,7 +22,7 @@ public class DashboardController {
 
     private final InvoiceRepository invoices;
     private final SalesReturnRepository returns;
-    private final CreditTransactionRepository credit;
+    private final InvoiceService invoiceService;
     private final ProductRepository products;
 
     @GetMapping
@@ -39,7 +38,9 @@ public class DashboardController {
                 invoices.salesCount(dayStart, dayEnd),
                 invoices.salesTotal(monthStart.atStartOfDay(), dayEnd)
                         .subtract(returns.returnsTotal(monthStart.atStartOfDay(), dayEnd)),
-                credit.totalReceivable(),
+                // Por cobrar = saldo de las facturas a crédito pendientes (la misma cartera de Clientes).
+                invoiceService.receivables().stream().map(InvoiceService.Receivable::balance)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add),
                 products.findLowStock());
     }
 }

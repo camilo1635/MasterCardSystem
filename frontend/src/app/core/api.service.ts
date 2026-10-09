@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import {
   Account, AuthResponse, AuthUser, CreditTransaction, Customer, CustomerCredit, DashboardSummary, Expense, IncomeStatement,
   InventoryMovement, Invoice, InvoiceRequest, JournalEntry, Product, Purchase, PurchaseRequest, Receivable,
-  Returnable, ReturnRequest, SalesReturn, Supplier, TrialBalanceRow,
+  PaymentResult, Returnable, ReturnRequest, SalesReturn, Supplier, TrialBalanceRow,
 } from './models';
 import { environment } from '../../environments/environment';
 
@@ -58,7 +58,7 @@ export class ApiService {
   customerCredit(id: number) { return this.http.get<CustomerCredit>(`${API_URL}/customers/${id}/credit`); }
   creditHistory(id: number) { return this.http.get<CreditTransaction[]>(`${API_URL}/customers/${id}/credit-history`); }
   pay(id: number, amount: number, method: string, note: string) {
-    return this.http.post<CreditTransaction>(`${API_URL}/customers/${id}/payments`, { amount, method, note });
+    return this.http.post<PaymentResult>(`${API_URL}/customers/${id}/payments`, { amount, method, note });
   }
   receivables() { return this.http.get<Receivable[]>(`${API_URL}/customers/receivables`); }
 

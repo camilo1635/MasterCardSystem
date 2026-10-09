@@ -5,7 +5,6 @@ import com.mastercard.system.accounting.AccountingService.Line;
 import com.mastercard.system.common.BusinessException;
 import com.mastercard.system.common.NotFoundException;
 import com.mastercard.system.credit.CreditTransaction.Type;
-import com.mastercard.system.customer.Customer;
 import com.mastercard.system.customer.CustomerRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -27,16 +26,11 @@ public class CreditService {
         return txs.balanceOf(customerId);
     }
 
-    /** Cargo por factura a crédito. Valida el cupo del cliente (con bloqueo para evitar carreras). */
+    /** Cargo por factura a crédito (con bloqueo del cliente para serializar su saldo). Sin cupo máximo. */
     @Transactional(propagation = Propagation.MANDATORY)
     public void charge(Long customerId, BigDecimal amount, Long invoiceId, String note) {
-        Customer c = customers.findByIdForUpdate(customerId)
-                .orElseThrow(() -> new NotFoundException("Cliente", customerId));
+        customers.findByIdForUpdate(customerId).orElseThrow(() -> new NotFoundException("Cliente", customerId));
         BigDecimal newBalance = txs.balanceOf(customerId).add(amount);
-        if (newBalance.compareTo(c.getCreditLimit()) > 0) {
-            throw new BusinessException("Cupo de crédito excedido: cupo " + c.getCreditLimit()
-                    + ", saldo resultante " + newBalance);
-        }
         save(customerId, Type.CARGO, amount, newBalance, invoiceId, null, note);
     }
 
@@ -88,9 +82,10 @@ public class CreditService {
         return t;
     }
 
+    /** Historial de crédito del cliente: sus abonos, el más reciente primero. */
     @Transactional(readOnly = true)
     public List<CreditTransaction> history(Long customerId) {
-        return txs.findByCustomerIdOrderByIdDesc(customerId);
+        return txs.findByCustomerIdAndTypeOrderByIdDesc(customerId, Type.ABONO);
     }
 
     private CreditTransaction save(Long customerId, Type type, BigDecimal signedAmount, BigDecimal balance,
