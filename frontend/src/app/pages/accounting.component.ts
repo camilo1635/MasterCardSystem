@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
 import { Account, Expense, IncomeStatement, JournalEntry, TrialBalanceRow } from '../core/models';
-import { MatSnackBar, SHARED_IMPORTS, monthStart, today } from '../core/shared';
+import { MatSnackBar, Pager, SHARED_IMPORTS, monthStart, today } from '../core/shared';
 
 @Component({
   selector: 'app-accounting',
@@ -31,7 +31,7 @@ import { MatSnackBar, SHARED_IMPORTS, monthStart, today } from '../core/shared';
 
       <mat-tab label="Balance de comprobación">
         <div class="card" style="margin-top:16px">
-          <table mat-table [dataSource]="trial()">
+          <table mat-table [dataSource]="trialPager.slice(trial())">
             <ng-container matColumnDef="code"><th mat-header-cell *matHeaderCellDef>Código</th><td mat-cell *matCellDef="let r">{{ r.code }}</td></ng-container>
             <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Cuenta</th><td mat-cell *matCellDef="let r">{{ r.name }}</td></ng-container>
             <ng-container matColumnDef="debit"><th mat-header-cell *matHeaderCellDef class="num">Débito</th><td mat-cell *matCellDef="let r" class="num">{{ r.debit | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
@@ -40,12 +40,13 @@ import { MatSnackBar, SHARED_IMPORTS, monthStart, today } from '../core/shared';
             <tr mat-header-row *matHeaderRowDef="trialCols"></tr>
             <tr mat-row *matRowDef="let r; columns: trialCols"></tr>
           </table>
+          <app-pager [pager]="trialPager" [length]="trial().length" />
         </div>
       </mat-tab>
 
       <mat-tab label="Libro diario">
         <div style="margin-top:16px">
-          @for (e of journal(); track e.id) {
+          @for (e of journalPager.slice(journal()); track e.id) {
             <div class="card">
               <strong>{{ e.date | date:'dd/MM/yyyy' }}</strong> · {{ e.description }} <span class="muted">({{ e.source }})</span>
               <table mat-table [dataSource]="e.lines">
@@ -58,6 +59,7 @@ import { MatSnackBar, SHARED_IMPORTS, monthStart, today } from '../core/shared';
             </div>
           }
           @if (!journal().length) { <p class="muted">Sin asientos en el período.</p> }
+          <app-pager [pager]="journalPager" [length]="journal().length" />
         </div>
       </mat-tab>
 
@@ -73,7 +75,7 @@ import { MatSnackBar, SHARED_IMPORTS, monthStart, today } from '../core/shared';
             <mat-form-field><mat-label>Valor</mat-label><input matInput type="number" min="1" [(ngModel)]="exp.amount"></mat-form-field>
             <button mat-flat-button color="primary" [disabled]="!exp.accountId || !exp.description || !exp.amount" (click)="saveExpense()">Registrar gasto</button>
           </div>
-          <table mat-table [dataSource]="expenses()">
+          <table mat-table [dataSource]="expensePager.slice(expenses())">
             <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let e">{{ e.date | date:'dd/MM/yyyy' }}</td></ng-container>
             <ng-container matColumnDef="account"><th mat-header-cell *matHeaderCellDef>Cuenta</th><td mat-cell *matCellDef="let e">{{ e.account.name }}</td></ng-container>
             <ng-container matColumnDef="description"><th mat-header-cell *matHeaderCellDef>Descripción</th><td mat-cell *matCellDef="let e">{{ e.description }}</td></ng-container>
@@ -81,6 +83,7 @@ import { MatSnackBar, SHARED_IMPORTS, monthStart, today } from '../core/shared';
             <tr mat-header-row *matHeaderRowDef="expCols"></tr>
             <tr mat-row *matRowDef="let r; columns: expCols"></tr>
           </table>
+          <app-pager [pager]="expensePager" [length]="expenses().length" />
         </div>
       </mat-tab>
     </mat-tab-group>
@@ -98,6 +101,9 @@ export class AccountingComponent implements OnInit {
   expenses = signal<Expense[]>([]);
   expenseAccounts = signal<Account[]>([]);
   exp = { date: today(), accountId: null as number | null, description: '', amount: 0 };
+  trialPager = new Pager();
+  journalPager = new Pager();
+  expensePager = new Pager();
   trialCols = ['code', 'name', 'debit', 'credit', 'balance'];
   lineCols = ['account', 'debit', 'credit'];
   expCols = ['date', 'account', 'description', 'amount'];

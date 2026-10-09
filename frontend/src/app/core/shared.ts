@@ -9,12 +9,15 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
+import { Pager, PagerComponent } from './pager';
 
 /** Módulos comunes que usan todas las páginas. */
 export const SHARED_IMPORTS = [
   FormsModule, CurrencyPipe, DatePipe, DecimalPipe, MatButtonModule, MatCheckboxModule, MatFormFieldModule,
-  MatIconModule, MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule, MatTabsModule,
+  MatIconModule, MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule, MatTabsModule, PagerComponent,
 ];
+
+export { Pager };
 
 export function today(): string {
   return new Date().toISOString().slice(0, 10);

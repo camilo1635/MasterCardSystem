@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
 import { CreditTransaction, Customer, CustomerCredit, Receivable } from '../core/models';
-import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
+import { MatSnackBar, Pager, SHARED_IMPORTS } from '../core/shared';
 
 const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', address: '', creditLimit: 0, active: true });
 
@@ -30,8 +30,8 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
 
         <div class="card" [style.margin-top.px]="0">
           <mat-form-field style="width:100%"><mat-label>Buscar por nombre o documento</mat-label>
-            <input matInput [ngModel]="q" (ngModelChange)="q = $event; load()"></mat-form-field>
-          <table mat-table [dataSource]="customers()">
+            <input matInput [ngModel]="q" (ngModelChange)="q = $event; customerPager.reset(); load()"></mat-form-field>
+          <table mat-table [dataSource]="customerPager.slice(customers())">
             <ng-container matColumnDef="document"><th mat-header-cell *matHeaderCellDef>Documento</th><td mat-cell *matCellDef="let c">{{ c.document }}</td></ng-container>
             <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Nombre</th><td mat-cell *matCellDef="let c">{{ c.name }}</td></ng-container>
             <ng-container matColumnDef="phone"><th mat-header-cell *matHeaderCellDef>Teléfono</th><td mat-cell *matCellDef="let c">{{ c.phone }}</td></ng-container>
@@ -44,6 +44,7 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
             <tr mat-header-row *matHeaderRowDef="cols"></tr>
             <tr mat-row *matRowDef="let r; columns: cols"></tr>
           </table>
+          <app-pager [pager]="customerPager" [length]="customers().length" />
         </div>
 
         @if (selected(); as s) {
@@ -62,7 +63,7 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
               <button mat-flat-button color="primary" [disabled]="!payAmount || s.balance <= 0" (click)="pay(s)">Registrar abono</button>
             </div>
             
-            <table mat-table [dataSource]="history()">
+            <table mat-table [dataSource]="historyPager.slice(history())">
               <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let t">{{ t.createdAt | date:'dd/MM/yy HH:mm' }}</td></ng-container>
               <ng-container matColumnDef="type"><th mat-header-cell *matHeaderCellDef>Tipo</th><td mat-cell *matCellDef="let t">{{ t.type }}</td></ng-container>
               <ng-container matColumnDef="note"><th mat-header-cell *matHeaderCellDef>Detalle</th><td mat-cell *matCellDef="let t">{{ t.note }} {{ t.method }}</td></ng-container>
@@ -72,6 +73,7 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
               <tr mat-header-row *matHeaderRowDef="histCols"></tr>
               <tr mat-row *matRowDef="let r; columns: histCols"></tr>
             </table>
+            <app-pager [pager]="historyPager" [length]="history().length" />
           </div>
         }
       </mat-tab>
@@ -79,7 +81,7 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
       <mat-tab label="Cartera por cobrar">
         <div class="card" style="margin-top:16px">
           @if (!receivables().length) { <p class="muted">No hay clientes con saldo pendiente.</p> }
-          <table mat-table [dataSource]="receivables()">
+          <table mat-table [dataSource]="receivablePager.slice(receivables())">
             <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Cliente</th><td mat-cell *matCellDef="let r">{{ r.name }}</td></ng-container>
             <ng-container matColumnDef="document"><th mat-header-cell *matHeaderCellDef>Documento</th><td mat-cell *matCellDef="let r">{{ r.document }}</td></ng-container>
             <ng-container matColumnDef="phone"><th mat-header-cell *matHeaderCellDef>Teléfono</th><td mat-cell *matCellDef="let r">{{ r.phone }}</td></ng-container>
@@ -87,6 +89,7 @@ const blank = (): Customer => ({ document: '', name: '', phone: '', email: '', a
             <tr mat-header-row *matHeaderRowDef="recCols"></tr>
             <tr mat-row *matRowDef="let r; columns: recCols"></tr>
           </table>
+          <app-pager [pager]="receivablePager" [length]="receivables().length" />
         </div>
       </mat-tab>
     </mat-tab-group>
@@ -107,6 +110,9 @@ export class CustomersComponent implements OnInit {
   payAmount = 0;
   payMethod = 'EFECTIVO';
   payNote = '';
+  customerPager = new Pager();
+  historyPager = new Pager();
+  receivablePager = new Pager();
   cols = ['document', 'name', 'phone', 'limit', 'actions'];
   histCols = ['date', 'type', 'note', 'amount', 'balance'];
   recCols = ['name', 'document', 'phone', 'balance'];
@@ -123,6 +129,7 @@ export class CustomersComponent implements OnInit {
   }
 
   openCredit(c: Customer) {
+    if (this.selected()?.customer.id !== c.id) this.historyPager.reset();
     this.api.customerCredit(c.id!).subscribe(s => this.selected.set(s));
     this.api.creditHistory(c.id!).subscribe(h => this.history.set(h));
   }

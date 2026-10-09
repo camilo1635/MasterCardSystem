@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, finalize, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { Customer, Invoice, Product, Returnable, SalesReturn } from '../core/models';
-import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
+import { MatSnackBar, Pager, SHARED_IMPORTS } from '../core/shared';
 
 interface CartLine { product: Product; quantity: number; unitPrice: number; }
 
@@ -20,7 +20,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
           <div class="card" style="flex: 3 1 420px">
             <mat-form-field style="width:100%"><mat-label>Buscar producto (nombre, SKU, marca)</mat-label>
               <input matInput [ngModel]="q" (ngModelChange)="onSearch($event)"></mat-form-field>
-            <table mat-table [dataSource]="results()">
+            <table mat-table [dataSource]="searchPager.slice(results())">
               <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Producto</th><td mat-cell *matCellDef="let p">{{ p.name }} <span class="muted">{{ p.sku }}</span></td></ng-container>
               <ng-container matColumnDef="price"><th mat-header-cell *matHeaderCellDef class="num">Precio</th><td mat-cell *matCellDef="let p" class="num">{{ p.price | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
               <ng-container matColumnDef="stock"><th mat-header-cell *matHeaderCellDef class="num">Cantidad</th><td mat-cell *matCellDef="let p" class="num" [class.danger]="p.stock === 0">{{ p.stock }}</td></ng-container>
@@ -29,6 +29,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
               <tr mat-header-row *matHeaderRowDef="searchCols"></tr>
               <tr mat-row *matRowDef="let r; columns: searchCols"></tr>
             </table>
+            <app-pager [pager]="searchPager" [length]="results().length" />
           </div>
 
           <div class="card" style="flex: 2 1 380px">
@@ -68,7 +69,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
             <mat-form-field><mat-label>Desde</mat-label><input matInput type="date" [(ngModel)]="from" (ngModelChange)="loadInvoices(); loadReturns()"></mat-form-field>
             <mat-form-field><mat-label>Hasta</mat-label><input matInput type="date" [(ngModel)]="to" (ngModelChange)="loadInvoices(); loadReturns()"></mat-form-field>
           </div>
-          <table mat-table [dataSource]="invoices()">
+          <table mat-table [dataSource]="invoicePager.slice(invoices())">
             <ng-container matColumnDef="number"><th mat-header-cell *matHeaderCellDef>No.</th><td mat-cell *matCellDef="let i">{{ i.number }}</td></ng-container>
             <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let i">{{ i.date | date:'dd/MM/yy HH:mm' }}</td></ng-container>
             <ng-container matColumnDef="customer"><th mat-header-cell *matHeaderCellDef>Cliente</th><td mat-cell *matCellDef="let i">{{ customerName(i.customerId) }}</td></ng-container>
@@ -90,6 +91,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
             <tr mat-header-row *matHeaderRowDef="cols"></tr>
             <tr mat-row *matRowDef="let r; columns: cols"></tr>
           </table>
+          <app-pager [pager]="invoicePager" [length]="invoices().length" />
         </div>
       </mat-tab>
 
@@ -121,7 +123,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
 
           <div class="card" style="flex: 3 1 420px">
             <h3>Devoluciones registradas</h3>
-            <table mat-table [dataSource]="returnsList()">
+            <table mat-table [dataSource]="returnPager.slice(returnsList())">
               <ng-container matColumnDef="number"><th mat-header-cell *matHeaderCellDef>No.</th><td mat-cell *matCellDef="let r">{{ r.number }}</td></ng-container>
               <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let r">{{ r.date | date:'dd/MM/yy HH:mm' }}</td></ng-container>
               <ng-container matColumnDef="invoice"><th mat-header-cell *matHeaderCellDef>Factura</th><td mat-cell *matCellDef="let r">{{ invoiceNumber(r.invoiceId) }}</td></ng-container>
@@ -131,6 +133,7 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
               <tr mat-header-row *matHeaderRowDef="returnCols"></tr>
               <tr mat-row *matRowDef="let r; columns: returnCols"></tr>
             </table>
+            <app-pager [pager]="returnPager" [length]="returnsList().length" />
             @if (!returnsList().length) { <p class="muted">Sin devoluciones en el período.</p> }
           </div>
         </div>
@@ -156,6 +159,10 @@ export class InvoicingComponent implements OnInit {
   to = new Date().toLocaleDateString('sv-SE');
   searchCols = ['name', 'price', 'stock', 'add'];
   cols = ['number', 'date', 'customer', 'pay', 'status', 'total', 'actions'];
+
+  searchPager = new Pager();
+  invoicePager = new Pager();
+  returnPager = new Pager();
 
   // Devoluciones
   tab = signal(0);
@@ -198,7 +205,7 @@ export class InvoicingComponent implements OnInit {
     this.loadReturns();
   }
 
-  onSearch(q: string) { this.q = q; this.search$.next(q); }
+  onSearch(q: string) { this.q = q; this.searchPager.reset(); this.search$.next(q); }
   search() { this.api.products(this.q).subscribe(p => this.results.set(p)); }
   loadInvoices() { this.api.invoices(this.from, this.to).subscribe(i => this.invoices.set(i)); }
   customerName(id?: number) { return id ? this.customerNames().get(id) ?? id : 'Consumidor final'; }

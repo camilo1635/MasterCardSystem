@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
 import { Product, Purchase, Supplier } from '../core/models';
-import { MatSnackBar, SHARED_IMPORTS, today } from '../core/shared';
+import { MatSnackBar, Pager, SHARED_IMPORTS, today } from '../core/shared';
 
 interface Line { productId: number | null; quantity: number; unitCost: number; }
 
@@ -47,7 +47,7 @@ interface Line { productId: number | null; quantity: number; unitCost: number; }
 
       <mat-tab label="Historial">
         <div class="card" style="margin-top:16px">
-          <table mat-table [dataSource]="purchases()">
+          <table mat-table [dataSource]="purchasePager.slice(purchases())">
             <ng-container matColumnDef="id"><th mat-header-cell *matHeaderCellDef>#</th><td mat-cell *matCellDef="let p">{{ p.id }}</td></ng-container>
             <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let p">{{ p.date | date:'dd/MM/yyyy' }}</td></ng-container>
             <ng-container matColumnDef="supplier"><th mat-header-cell *matHeaderCellDef>Proveedor</th><td mat-cell *matCellDef="let p">{{ p.supplier.name }}</td></ng-container>
@@ -57,6 +57,7 @@ interface Line { productId: number | null; quantity: number; unitCost: number; }
             <tr mat-header-row *matHeaderRowDef="cols"></tr>
             <tr mat-row *matRowDef="let r; columns: cols"></tr>
           </table>
+          <app-pager [pager]="purchasePager" [length]="purchases().length" />
         </div>
       </mat-tab>
 
@@ -70,13 +71,14 @@ interface Line { productId: number | null; quantity: number; unitCost: number; }
             <button mat-flat-button color="primary" [disabled]="!sup.name" (click)="saveSupplier()">Guardar proveedor</button>
           </div>
           
-          <table mat-table [dataSource]="suppliers()">
+          <table mat-table [dataSource]="supplierPager.slice(suppliers())">
             <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Nombre</th><td mat-cell *matCellDef="let s">{{ s.name }}</td></ng-container>
             <ng-container matColumnDef="nit"><th mat-header-cell *matHeaderCellDef>NIT</th><td mat-cell *matCellDef="let s">{{ s.nit }}</td></ng-container>
             <ng-container matColumnDef="phone"><th mat-header-cell *matHeaderCellDef>Teléfono</th><td mat-cell *matCellDef="let s">{{ s.phone }}</td></ng-container>
             <tr mat-header-row *matHeaderRowDef="supCols"></tr>
             <tr mat-row *matRowDef="let r; columns: supCols"></tr>
           </table>
+          <app-pager [pager]="supplierPager" [length]="suppliers().length" />
         </div>
       </mat-tab>
     </mat-tab-group>
@@ -95,6 +97,8 @@ export class PurchasesComponent implements OnInit {
   paymentType = 'CONTADO';
   lines: Line[] = [{ productId: null, quantity: 1, unitCost: 0 }];
   sup: Supplier = { name: '' };
+  purchasePager = new Pager();
+  supplierPager = new Pager();
   cols = ['id', 'date', 'supplier', 'doc', 'pay', 'total'];
   supCols = ['name', 'nit', 'phone'];
 

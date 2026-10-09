@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ApiService } from '../core/api.service';
 import { InventoryMovement, Product } from '../core/models';
-import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
+import { MatSnackBar, Pager, SHARED_IMPORTS } from '../core/shared';
 
 @Component({
   selector: 'app-inventory',
@@ -27,8 +27,8 @@ import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
     <div class="card">
       <h3>Movimientos recientes</h3>
       <mat-form-field style="min-width: 320px"><mat-label>Buscar producto (nombre o SKU)</mat-label>
-        <input matInput [ngModel]="q()" (ngModelChange)="q.set($event)"></mat-form-field>
-      <table mat-table [dataSource]="filtered()">
+        <input matInput [ngModel]="q()" (ngModelChange)="q.set($event); pager.reset()"></mat-form-field>
+      <table mat-table [dataSource]="pager.slice(filtered())">
         <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let m">{{ m.createdAt | date:'dd/MM/yy HH:mm' }}</td></ng-container>
         <ng-container matColumnDef="product"><th mat-header-cell *matHeaderCellDef>Producto</th><td mat-cell *matCellDef="let m">{{ productNames().get(m.productId) ?? m.productId }}</td></ng-container>
         <ng-container matColumnDef="qty"><th mat-header-cell *matHeaderCellDef class="num">Cantidad</th>
@@ -37,6 +37,7 @@ import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
         <tr mat-header-row *matHeaderRowDef="cols"></tr>
         <tr mat-row *matRowDef="let r; columns: cols"></tr>
       </table>
+      <app-pager [pager]="pager" [length]="filtered().length" />
     </div>
   `,
 })
@@ -56,7 +57,8 @@ export class InventoryComponent implements OnInit {
     return this.movements().filter(m => ids.has(m.productId));
   });
   qty = 0;
-  cols = ['date', 'product', 'qty', 'cost'];
+  pager = new Pager();
+  cols =['date', 'product', 'qty', 'cost'];
 
   ngOnInit() { this.loadProducts(); this.loadMovements(); }
 

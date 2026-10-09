@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { Product } from '../core/models';
-import { MatSnackBar, SHARED_IMPORTS } from '../core/shared';
+import { MatSnackBar, Pager, SHARED_IMPORTS } from '../core/shared';
 
 const blank = (): Product => ({ sku: '', name: '', brand: '', cost: 0, price: 0, ivaRate: 19, stock: 0 });
 
@@ -42,7 +42,7 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', cost: 0, price: 0,
     <div class="card">
       <mat-form-field style="width: 100%"><mat-label>Buscar por nombre, SKU o marca</mat-label>
         <input matInput [ngModel]="q" (ngModelChange)="onSearch($event)"></mat-form-field>
-      <table mat-table [dataSource]="items()">
+      <table mat-table [dataSource]="pager.slice(items())">
         <ng-container matColumnDef="sku"><th mat-header-cell *matHeaderCellDef>SKU</th><td mat-cell *matCellDef="let p">{{ p.sku }}</td></ng-container>
         <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Producto</th>
           <td mat-cell *matCellDef="let p">{{ p.name }} <span class="muted">{{ p.brand }}</span>@if (p.stock <= 0) { <em class="muted"> (sin cantidad)</em> }</td></ng-container>
@@ -55,6 +55,7 @@ const blank = (): Product => ({ sku: '', name: '', brand: '', cost: 0, price: 0,
         <tr mat-header-row *matHeaderRowDef="cols"></tr>
         <tr mat-row *matRowDef="let r; columns: cols"></tr>
       </table>
+      <app-pager [pager]="pager" [length]="items().length" />
     </div>
   `,
 })
@@ -66,7 +67,8 @@ export class ProductsComponent implements OnInit {
   form: Product = blank();
   initialQty = 0;
   q = '';
-  cols = ['sku', 'name', 'cost', 'price', 'stock', 'actions'];
+  pager = new Pager();
+  cols =['sku', 'name', 'cost', 'price', 'stock', 'actions'];
 
   private search$ = new Subject<string>();
 
@@ -78,7 +80,7 @@ export class ProductsComponent implements OnInit {
 
   ngOnInit() { this.load(); }
 
-  onSearch(q: string) { this.q = q; this.search$.next(q); }
+  onSearch(q: string) { this.q = q; this.pager.reset(); this.search$.next(q); }
   load() { this.api.products(this.q).subscribe(p => this.items.set(p)); }
 
   edit(p: Product) { this.form = { ...p }; window.scrollTo({ top: 0, behavior: 'smooth' }); }
