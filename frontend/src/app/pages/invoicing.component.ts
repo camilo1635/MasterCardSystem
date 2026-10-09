@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { provideNativeDateAdapter } from '@angular/material/core';
 import { Subject, debounceTime, distinctUntilChanged, finalize, switchMap } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { Customer, Invoice, Product, Returnable, SalesReturn } from '../core/models';
@@ -11,7 +13,8 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
   selector: 'app-invoicing',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: SHARED_IMPORTS,
+  imports: [...SHARED_IMPORTS, MatDatepickerModule],
+  providers: [provideNativeDateAdapter()],
   template: `
     <h1>Facturación</h1>
     <mat-tab-group [(selectedIndex)]="tab">
@@ -66,20 +69,62 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
       <mat-tab label="Historial">
         <div class="card" style="margin-top:16px">
           <div class="row">
-            <mat-form-field><mat-label>Desde</mat-label><input matInput type="date" [(ngModel)]="from" (ngModelChange)="loadInvoices(); loadReturns()"></mat-form-field>
-            <mat-form-field><mat-label>Hasta</mat-label><input matInput type="date" [(ngModel)]="to" (ngModelChange)="loadInvoices(); loadReturns()"></mat-form-field>
+            <mat-form-field><mat-label>Rango de fechas</mat-label>
+              <mat-date-range-input [rangePicker]="picker">
+                <input matStartDate placeholder="Desde" [(ngModel)]="fromDate" (dateChange)="onRange()">
+                <input matEndDate placeholder="Hasta" [(ngModel)]="toDate" (dateChange)="onRange()">
+              </mat-date-range-input>
+              <mat-datepicker-toggle matIconSuffix [for]="picker" />
+              <mat-date-range-picker #picker />
+            </mat-form-field>
+            <mat-form-field style="flex: 1 1 280px"><mat-label>Buscar por cliente o No. de factura</mat-label>
+              <input matInput [ngModel]="invoiceQuery()" (ngModelChange)="onInvoiceQuery($event)">
+              <mat-icon matSuffix>search</mat-icon>
+            </mat-form-field>
+            <mat-form-field><mat-label>Forma de pago</mat-label>
+              <mat-select [ngModel]="payFilter()" (ngModelChange)="onPayFilter($event)">
+                <mat-option value="TODOS">Todas</mat-option>
+                <mat-option value="CREDITO">Solo crédito</mat-option>
+                <mat-option value="CONTADO">Solo contado</mat-option>
+              </mat-select></mat-form-field>
           </div>
-          <table mat-table [dataSource]="invoicePager.slice(invoices())">
+
+          @if (payTarget(); as pi) {
+            <div class="card" style="margin-top:0">
+              <h3>Abono a la factura {{ pi.number }} · {{ customerName(pi.customerId) }}</h3>
+              <div class="kpis">
+                <div class="kpi"><div class="label">Total factura</div><div class="value">{{ pi.total | currency:'COP':'symbol-narrow':'1.0-0' }}</div></div>
+                <div class="kpi"><div class="label">Abonado</div><div class="value ok">{{ (pi.paid ?? 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</div></div>
+                <div class="kpi"><div class="label">Saldo pendiente</div><div class="value danger">{{ (pi.pending ?? 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</div></div>
+              </div>
+              <div class="row">
+                <mat-form-field><mat-label>Valor del abono</mat-label>
+                  <input matInput type="number" min="1" [max]="pi.pending ?? 0" [(ngModel)]="payAmount"></mat-form-field>
+              </div>
+              <div class="row">
+                <button mat-flat-button color="primary" [disabled]="saving() || !payAmount || payAmount <= 0 || payAmount > (pi.pending ?? 0)" (click)="submitPayment()">Registrar abono</button>
+                <button mat-button (click)="payTarget.set(null)">Cancelar</button>
+              </div>
+            </div>
+          }
+          <table mat-table [dataSource]="invoicePager.slice(filteredInvoices())">
             <ng-container matColumnDef="number"><th mat-header-cell *matHeaderCellDef>No.</th><td mat-cell *matCellDef="let i">{{ i.number }}</td></ng-container>
             <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let i">{{ i.date | date:'dd/MM/yy HH:mm' }}</td></ng-container>
             <ng-container matColumnDef="customer"><th mat-header-cell *matHeaderCellDef>Cliente</th><td mat-cell *matCellDef="let i">{{ customerName(i.customerId) }}</td></ng-container>
             <ng-container matColumnDef="pay"><th mat-header-cell *matHeaderCellDef>Pago</th><td mat-cell *matCellDef="let i">{{ i.paymentType }}</td></ng-container>
+            <ng-container matColumnDef="paid"><th mat-header-cell *matHeaderCellDef class="num">Abonado</th>
+              <td mat-cell *matCellDef="let i" class="num">{{ i.paymentType === 'CREDITO' ? (i.paid | currency:'COP':'symbol-narrow':'1.0-0') : '—' }}</td></ng-container>
+            <ng-container matColumnDef="pending"><th mat-header-cell *matHeaderCellDef class="num">Saldo</th>
+              <td mat-cell *matCellDef="let i" class="num" [class.danger]="i.paymentType === 'CREDITO' && i.pending > 0" [class.ok]="i.paymentType === 'CREDITO' && i.status === 'EMITIDA' && i.pending === 0">{{ i.paymentType === 'CREDITO' ? (i.pending | currency:'COP':'symbol-narrow':'1.0-0') : '—' }}</td></ng-container>
             <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>Estado</th><td mat-cell *matCellDef="let i" [class.danger]="i.status === 'ANULADA'">{{ statusLabel(i) }}</td></ng-container>
             <ng-container matColumnDef="total"><th mat-header-cell *matHeaderCellDef class="num">Total</th><td mat-cell *matCellDef="let i" class="num">{{ i.total | currency:'COP':'symbol-narrow':'1.0-0' }}</td></ng-container>
             <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let i">
                 <button mat-icon-button title="PDF" aria-label="Ver PDF de la factura" (click)="openPdf(i.id)"><mat-icon>picture_as_pdf</mat-icon></button>
                 @if (i.status === 'EMITIDA') {
+                  @if (i.paymentType === 'CREDITO' && (i.pending ?? 0) > 0) {
+                    <button mat-icon-button title="Abonar" aria-label="Registrar abono" (click)="startPayment(i)"><mat-icon>payments</mat-icon></button>
+                  }
                   @if (i.returnStatus !== 'TOTAL') {
                     <button mat-icon-button title="Devolución" aria-label="Registrar devolución" (click)="startReturn(i)"><mat-icon>assignment_return</mat-icon></button>
                   }
@@ -91,7 +136,8 @@ interface CartLine { product: Product; quantity: number; unitPrice: number; }
             <tr mat-header-row *matHeaderRowDef="cols"></tr>
             <tr mat-row *matRowDef="let r; columns: cols"></tr>
           </table>
-          <app-pager [pager]="invoicePager" [length]="invoices().length" />
+          @if (!filteredInvoices().length) { <p class="muted">No hay facturas que coincidan.</p> }
+          <app-pager [pager]="invoicePager" [length]="filteredInvoices().length" />
         </div>
       </mat-tab>
 
@@ -155,10 +201,25 @@ export class InvoicingComponent implements OnInit {
   customerId: number | null = null;
   paymentType = 'CONTADO';
   q = '';
-  from = new Date(Date.now() - 30 * 864e5).toLocaleDateString('sv-SE');
-  to = new Date().toLocaleDateString('sv-SE');
+  fromDate: Date | null = new Date(Date.now() - 30 * 864e5);
+  toDate: Date | null = new Date();
+  from = this.fromDate!.toLocaleDateString('sv-SE'); // yyyy-MM-dd para la API
+  to = this.toDate!.toLocaleDateString('sv-SE');
+  invoiceQuery = signal('');
+  filteredInvoices = computed(() => {
+    const q = this.invoiceQuery().trim().toLowerCase();
+    const pay = this.payFilter();
+    return this.invoices().filter(i =>
+      (pay === 'TODOS' || i.paymentType === pay) &&
+      (!q || String(i.number).includes(q) || String(this.customerName(i.customerId)).toLowerCase().includes(q)));
+  });
   searchCols = ['name', 'price', 'stock', 'add'];
-  cols = ['number', 'date', 'customer', 'pay', 'status', 'total', 'actions'];
+  cols = ['number', 'date', 'customer', 'pay', 'status', 'total', 'paid', 'pending', 'actions'];
+
+  // Abonos a factura
+  payFilter = signal<'TODOS' | 'CREDITO' | 'CONTADO'>('TODOS');
+  payTarget = signal<Invoice | null>(null);
+  payAmount = 0;
 
   searchPager = new Pager();
   invoicePager = new Pager();
@@ -257,6 +318,40 @@ export class InvoicingComponent implements OnInit {
       if (i.returnStatus === 'PARCIAL') return 'DEVOLUCIÓN PARCIAL';
     }
     return i.status;
+  }
+
+  /** Recarga solo cuando el rango está completo (el calendario dispara un cambio al elegir el inicio). */
+  onRange() {
+    if (!this.fromDate || !this.toDate) return;
+    this.from = this.fromDate.toLocaleDateString('sv-SE');
+    this.to = this.toDate.toLocaleDateString('sv-SE');
+    this.invoicePager.reset();
+    this.loadInvoices();
+    this.loadReturns();
+  }
+
+  onInvoiceQuery(q: string) { this.invoiceQuery.set(q); this.invoicePager.reset(); }
+  onPayFilter(v: 'TODOS' | 'CREDITO' | 'CONTADO') { this.payFilter.set(v); this.invoicePager.reset(); }
+
+  startPayment(i: Invoice) {
+    this.payTarget.set(i);
+    this.payAmount = 0;
+  }
+
+  submitPayment() {
+    const inv = this.payTarget();
+    if (!inv || this.saving()) return;
+    this.saving.set(true);
+    this.api.payInvoice(inv.id, this.payAmount)
+      .pipe(finalize(() => this.saving.set(false)))
+      .subscribe(updated => {
+        const settled = (updated.pending ?? 0) === 0;
+        this.snack.open(settled ? `Factura ${updated.number} pagada por completo`
+          : `Abono registrado. Saldo pendiente: ${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(updated.pending ?? 0)}`,
+          undefined, { duration: 4000 });
+        this.payTarget.set(null);
+        this.loadInvoices();
+      });
   }
 
   loadReturns() { this.api.returns(this.from, this.to).subscribe(r => this.returnsList.set(r)); }

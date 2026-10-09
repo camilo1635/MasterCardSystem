@@ -6,6 +6,7 @@ import com.mastercard.system.common.BusinessException;
 import com.mastercard.system.common.Money;
 import com.mastercard.system.common.NotFoundException;
 import com.mastercard.system.credit.CreditService;
+import com.mastercard.system.credit.CreditTransactionRepository;
 import com.mastercard.system.customer.CustomerRepository;
 import com.mastercard.system.inventory.InventoryMovement.Type;
 import com.mastercard.system.inventory.InventoryService;
@@ -19,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -38,6 +40,7 @@ public class InvoiceService {
 
     private final InvoiceRepository invoices;
     private final SalesReturnRepository returns;
+    private final CreditTransactionRepository creditTxs;
     private final ProductRepository products;
     private final CustomerRepository customers;
     private final InventoryService inventory;
@@ -146,6 +149,70 @@ public class InvoiceService {
         }
         accounting.reverse("FACTURA", inv.getId(), "ANULACION", "Anulación factura " + inv.getNumber());
         return inv; // entidad gestionada: el commit persiste el estado
+    }
+
+    /**
+     * Abono a una factura a crédito, hasta completar su saldo. Descuenta del saldo del cliente y
+     * genera el asiento (Dr Caja/Bancos, Cr Clientes) igual que un abono general.
+     */
+    @Transactional
+    public Invoice payInvoice(Long id, BigDecimal amount, String method, String note) {
+        Invoice inv = invoices.findByIdForUpdate(id).orElseThrow(() -> new NotFoundException("Factura", id));
+        if (!inv.getPaymentType().equals("CREDITO")) {
+            throw new BusinessException("Solo las facturas a crédito reciben abonos");
+        }
+        if (inv.getStatus().equals("ANULADA")) {
+            throw new BusinessException("La factura está anulada");
+        }
+        BigDecimal value = Money.round(amount);
+        if (value.signum() <= 0) {
+            throw new BusinessException("El abono debe ser mayor a cero");
+        }
+        BigDecimal pending = enrich(List.of(inv)).get(0).getPending();
+        if (value.compareTo(pending) > 0) {
+            throw new BusinessException("El abono (" + value + ") supera el saldo de la factura (" + pending + ")");
+        }
+        credit.pay(inv.getCustomerId(), value, method == null ? "EFECTIVO" : method,
+                note != null && !note.isBlank() ? note : "Abono factura " + inv.getNumber(), inv.getId());
+        return enrich(List.of(get(id))).get(0);
+    }
+
+    /**
+     * Completa los campos derivados de cada factura con pocas consultas: estado de devolución
+     * (NINGUNA/PARCIAL/TOTAL) y, en facturas a crédito, lo abonado y el saldo pendiente
+     * (total - abonos aplicados a la factura - deuda descontada por devoluciones).
+     */
+    @Transactional(readOnly = true)
+    public List<Invoice> enrich(List<Invoice> list) {
+        if (list.isEmpty()) {
+            return list;
+        }
+        List<Long> ids = list.stream().map(Invoice::getId).toList();
+        Map<Long, Long> returned = new HashMap<>();
+        for (Object[] row : returns.returnedByInvoice(ids)) {
+            returned.put((Long) row[0], ((Number) row[1]).longValue());
+        }
+        Map<Long, BigDecimal> paid = new HashMap<>();
+        for (Object[] row : creditTxs.paidByInvoice(ids)) {
+            paid.put((Long) row[0], (BigDecimal) row[1]);
+        }
+        Map<Long, BigDecimal> returnCredit = new HashMap<>();
+        for (Object[] row : returns.creditAppliedByInvoice(ids)) {
+            returnCredit.put((Long) row[0], (BigDecimal) row[1]);
+        }
+        for (Invoice inv : list) {
+            long done = returned.getOrDefault(inv.getId(), 0L);
+            long sold = inv.getItems().stream().mapToLong(InvoiceItem::getQuantity).sum();
+            inv.setReturnStatus(done == 0 ? "NINGUNA" : done >= sold ? "TOTAL" : "PARCIAL");
+            if (inv.getPaymentType().equals("CREDITO")) {
+                BigDecimal p = paid.getOrDefault(inv.getId(), BigDecimal.ZERO);
+                inv.setPaid(p);
+                inv.setPending(inv.getStatus().equals("ANULADA") ? BigDecimal.ZERO
+                        : inv.getTotal().subtract(p).subtract(returnCredit.getOrDefault(inv.getId(), BigDecimal.ZERO))
+                                .max(BigDecimal.ZERO));
+            }
+        }
+        return list;
     }
 
     @Transactional(readOnly = true)

@@ -74,6 +74,9 @@ export class ApiService {
   }
   createInvoice(r: InvoiceRequest) { return this.http.post<Invoice>(`${API_URL}/invoices`, r); }
   cancelInvoice(id: number) { return this.http.post<Invoice>(`${API_URL}/invoices/${id}/cancel`, {}); }
+  payInvoice(id: number, amount: number) {
+    return this.http.post<Invoice>(`${API_URL}/invoices/${id}/payments`, { amount });
+  }
   invoicePdf(id: number) { return this.http.get(`${API_URL}/invoices/${id}/pdf`, { responseType: 'blob' }); }
 
   // Devoluciones

@@ -2,10 +2,11 @@ package com.mastercard.system.sales;
 
 import com.mastercard.system.sales.InvoiceService.InvoiceRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -25,7 +26,6 @@ public class InvoiceController {
 
     private final InvoiceService service;
     private final InvoiceRepository repo;
-    private final SalesReturnRepository returns;
     private final InvoicePdfService pdf;
 
     @GetMapping
@@ -34,34 +34,27 @@ public class InvoiceController {
                               @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
                               @RequestParam(required = false) Long customerId) {
         if (customerId != null) {
-            return withReturnStatus(repo.findByCustomer(customerId));
+            return service.enrich(repo.findByCustomer(customerId));
         }
         LocalDate f = from != null ? from : LocalDate.now().minusDays(30);
         LocalDate t = to != null ? to : LocalDate.now();
-        return withReturnStatus(repo.findBetween(f.atStartOfDay(), t.plusDays(1).atStartOfDay()));
-    }
-
-    /** Marca cada factura como sin devoluciones, con devolución parcial o totalmente devuelta (una consulta). */
-    private List<Invoice> withReturnStatus(List<Invoice> list) {
-        if (list.isEmpty()) {
-            return list;
-        }
-        Map<Long, Long> returned = new HashMap<>();
-        for (Object[] row : returns.returnedByInvoice(list.stream().map(Invoice::getId).toList())) {
-            returned.put((Long) row[0], ((Number) row[1]).longValue());
-        }
-        for (Invoice inv : list) {
-            long done = returned.getOrDefault(inv.getId(), 0L);
-            long sold = inv.getItems().stream().mapToLong(InvoiceItem::getQuantity).sum();
-            inv.setReturnStatus(done == 0 ? "NINGUNA" : done >= sold ? "TOTAL" : "PARCIAL");
-        }
-        return list;
+        return service.enrich(repo.findBetween(f.atStartOfDay(), t.plusDays(1).atStartOfDay()));
     }
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
     public Invoice get(@PathVariable Long id) {
-        return withReturnStatus(List.of(service.get(id))).get(0);
+        return service.enrich(List.of(service.get(id))).get(0);
+    }
+
+    public record InvoicePaymentRequest(@NotNull @Positive BigDecimal amount, String method, String note) {}
+
+    /** Abono a una factura a crédito (hasta completar su saldo). */
+    @PostMapping("/{id}/payments")
+    public Invoice pay(@PathVariable Long id, @Valid @RequestBody InvoicePaymentRequest r, Authentication auth) {
+        Invoice inv = service.payInvoice(id, r.amount(), r.method(), r.note());
+        log.info("Abono de {} a la factura {} registrado por {}", r.amount(), id, auth.getName());
+        return inv;
     }
 
     @PostMapping

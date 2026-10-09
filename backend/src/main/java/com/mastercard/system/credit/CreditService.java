@@ -66,6 +66,12 @@ public class CreditService {
     /** Abono del cliente: Dr Caja/Bancos, Cr Clientes. No puede superar el saldo adeudado. */
     @Transactional
     public CreditTransaction pay(Long customerId, BigDecimal amount, String method, String note) {
+        return pay(customerId, amount, method, note, null);
+    }
+
+    /** Abono aplicado a una factura específica (invoiceId) o a la cuenta general del cliente (null). */
+    @Transactional
+    public CreditTransaction pay(Long customerId, BigDecimal amount, String method, String note, Long invoiceId) {
         customers.findByIdForUpdate(customerId).orElseThrow(() -> new NotFoundException("Cliente", customerId));
         BigDecimal balance = txs.balanceOf(customerId);
         if (amount.signum() <= 0) {
@@ -74,7 +80,7 @@ public class CreditService {
         if (amount.compareTo(balance) > 0) {
             throw new BusinessException("El abono (" + amount + ") supera el saldo adeudado (" + balance + ")");
         }
-        CreditTransaction t = save(customerId, Type.ABONO, amount.negate(), balance.subtract(amount), null, method, note);
+        CreditTransaction t = save(customerId, Type.ABONO, amount.negate(), balance.subtract(amount), invoiceId, method, note);
         String cash = "EFECTIVO".equals(method) ? AccountingService.CAJA : AccountingService.BANCOS;
         accounting.post(LocalDate.now(), "Abono cliente #" + customerId, "ABONO", t.getId(), List.of(
                 Line.debit(cash, amount),

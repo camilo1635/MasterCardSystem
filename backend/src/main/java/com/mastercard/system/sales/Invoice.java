@@ -30,6 +30,12 @@ public class Invoice {
     @Transient
     private String returnStatus = "NINGUNA";
 
+    /** Derivados (no persistidos), solo para facturas a crédito: abonado y saldo pendiente de la factura. */
+    @Transient
+    private BigDecimal paid = BigDecimal.ZERO;
+    @Transient
+    private BigDecimal pending = BigDecimal.ZERO;
+
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<InvoiceItem> items = new ArrayList<>();
 }

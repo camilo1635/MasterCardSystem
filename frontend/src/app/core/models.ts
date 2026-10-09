@@ -32,7 +32,7 @@ export interface InvoiceItem { id?: number; productId: number; description: stri
 
 export interface Invoice {
   id: number; number: number; customerId?: number; date: string; paymentType: 'CONTADO' | 'CREDITO';
-  status: 'EMITIDA' | 'ANULADA'; returnStatus?: 'NINGUNA' | 'PARCIAL' | 'TOTAL'; subtotal: number; iva: number; total: number; notes?: string; items: InvoiceItem[];
+  status: 'EMITIDA' | 'ANULADA'; returnStatus?: 'NINGUNA' | 'PARCIAL' | 'TOTAL'; paid?: number; pending?: number; subtotal: number; iva: number; total: number; notes?: string; items: InvoiceItem[];
 }
 
 export interface InvoiceRequest {

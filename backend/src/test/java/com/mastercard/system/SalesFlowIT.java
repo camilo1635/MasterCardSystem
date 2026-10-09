@@ -149,6 +149,36 @@ class SalesFlowIT {
     }
 
     @Test
+    void invoicePaymentsAccumulateUntilSettled() {
+        Product p = product();
+        stock(p, 10, "60000");
+        Customer c = customer("500000");
+        Invoice inv = invoices.create(new InvoiceRequest(c.getId(), "CREDITO", null,
+                List.of(new InvoiceService.ItemRequest(p.getId(), 2, null)))); // 238.000
+
+        Invoice first = invoices.payInvoice(inv.getId(), new BigDecimal("100000"), "EFECTIVO", null);
+        assertThat(first.getPaid()).isEqualByComparingTo("100000");
+        assertThat(first.getPending()).isEqualByComparingTo("138000");
+        assertThat(credit.balanceOf(c.getId())).isEqualByComparingTo("138000");
+
+        // No se puede abonar más que el saldo de la factura.
+        assertThatThrownBy(() -> invoices.payInvoice(inv.getId(), new BigDecimal("138001"), "EFECTIVO", null))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("supera el saldo");
+
+        Invoice settled = invoices.payInvoice(inv.getId(), new BigDecimal("138000"), "TRANSFERENCIA", null);
+        assertThat(settled.getPending()).isEqualByComparingTo("0");
+        assertThat(credit.balanceOf(c.getId())).isEqualByComparingTo("0");
+        assertThatThrownBy(() -> invoices.payInvoice(inv.getId(), new BigDecimal("1"), "EFECTIVO", null))
+                .isInstanceOf(BusinessException.class);
+
+        // Una factura de contado no recibe abonos.
+        Invoice cash = invoices.create(new InvoiceRequest(null, "CONTADO", null,
+                List.of(new InvoiceService.ItemRequest(p.getId(), 1, null))));
+        assertThatThrownBy(() -> invoices.payInvoice(cash.getId(), new BigDecimal("1"), "EFECTIVO", null))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("crédito");
+    }
+
+    @Test
     void rejectsInsufficientStockAndExceededCredit() {
         Product p = product();
         stock(p, 1, "60000");

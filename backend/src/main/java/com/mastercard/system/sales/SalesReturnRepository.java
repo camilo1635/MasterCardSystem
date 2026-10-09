@@ -34,6 +34,10 @@ public interface SalesReturnRepository extends JpaRepository<SalesReturn, Long> 
             + "where r.invoiceId in :invoiceIds group by r.invoiceId")
     List<Object[]> returnedByInvoice(@Param("invoiceIds") java.util.Collection<Long> invoiceIds);
 
+    /** [invoiceId, monto] de las devoluciones que ya descontaron deuda de cada factura. */
+    @Query("select r.invoiceId, sum(r.creditApplied) from SalesReturn r where r.invoiceId in :invoiceIds group by r.invoiceId")
+    List<Object[]> creditAppliedByInvoice(@Param("invoiceIds") java.util.Collection<Long> invoiceIds);
+
     @Query("select coalesce(sum(r.total), 0) from SalesReturn r where r.date >= :from and r.date < :to")
     BigDecimal returnsTotal(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 }
